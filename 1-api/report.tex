@@ -1,0 +1,628 @@
+\documentclass{article}
+\usepackage{listings}
+\usepackage{fullpage}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{xargs}
+\usepackage{enumitem}
+\usepackage{color}
+\usepackage{hyperref}
+\setlist[description]{style=nextline, labelindent=\parindent}
+
+\usepackage[colorinlistoftodos,prependcaption,textsize=tiny]{todonotes}
+\newcommandx{\unsure}[2][1=]{\todo[linecolor=red,backgroundcolor=red!25,bordercolor=red,#1]{#2}}
+
+\definecolor{lightgray}{rgb}{.9,.9,.9}
+\definecolor{darkgray}{rgb}{.4,.4,.4}
+\definecolor{purple}{rgb}{0.65, 0.12, 0.82}
+
+\lstdefinelanguage{JavaScript}{
+  keywords={typeof, new, true, false, catch, function, return, null, catch, switch, var, if, in, while, do, else, case, break},
+  keywordstyle=\color{blue}\bfseries,
+  ndkeywords={class, export, boolean, throw, implements, import, this},
+  ndkeywordstyle=\color{darkgray}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=false,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\lstset{
+   language=JavaScript,
+   backgroundcolor=\color{lightgray},
+   extendedchars=true,
+   basicstyle=\footnotesize\ttfamily,
+   showstringspaces=false,
+   showspaces=false,
+   numbers=left,
+   numberstyle=\footnotesize,
+   numbersep=9pt,
+   tabsize=2,
+   breaklines=true,
+   showtabs=false,
+   captionpos=b
+}
+
+\usepackage{xcolor}
+\definecolor{light-gray}{gray}{0.95}
+\newcommand{\code}[1]{\colorbox{light-gray}{\texttt{#1}}}
+
+\title{eBay Service}
+\author{Maxwell Wenger}
+\date{January 12, 2021}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Overview}
+
+\subsection{Task}
+Your team is tasked with putting together a design document to show how Ebay
+could change from a number of Perl scripts, each accessing the database, to a
+service oriented architecture where database access and some business logic
+would live in a service layer.
+
+\subsection{Document Purpose}
+This document will not assume any platform, but only discuss the interfaces
+between different API endpoints that could be implemented with many different
+platforms. This document will propose a series of methods, what data to pass
+into them, what they might return, and what parts of the database they might
+impact. The decision on which platform to use is out of scope of this document.
+
+\subsection{General Approach}
+Although the implementation details are out of scope of this document, this API
+design is assuming a service based/microservice architecture. All endpoints
+will accept and return serialized raw data rather than serialized objects. The
+motivation for this approach is as follows:
+
+\begin{itemize}
+    \item Forces a single endpoint for like-operations, increasing the
+        maintainability of the code base.
+    \item Single endpoints are easier to test.
+    \item Single endpoints are easier to log.
+    \item Makes it easier to scale and parallelize different services based on
+        load, which improves performance.
+    \item Easier to manage development teams around small services with tight
+        scope rather than a large and unorganized codebase.
+\end{itemize}
+
+\subsection{How to read this document}
+This document attempts to describe the API while making as few implementation
+decisions as possible. Each section will have the endpoint of the API. This is
+where the user will make their request to when trying to access the API. The
+parameters section describes the payload that the API expects. This will be
+serialized using a format specified at implementation (but something like JSON
+or XML). The response describes the different ways that the API will respond
+and what parts of the system it impacts given different states.
+
+\subsection{Terms}
+\begin{description}
+    \item[data/payload] This is used to describe the data that is passed to and
+        from the APIs. This will be serialized in a common format that will be
+        decided when planning the implementation. Possible formats may be JSON
+        or XML.
+\end{description}
+
+
+\subsection{Services}
+
+All of our APIs are split up into different services. Table~\ref{tab:fqdns} is
+a list of all of our services along with their FQDN.
+
+\begin{table}
+    \centering
+\begin{tabular}{|c|l|}
+    \hline
+    \textbf{Service Name} & \textbf{Service Domain Name} \\
+    \hline 
+    Auction & \code{auction.ebayapi.com} \\
+    Product Categories & \code{productcategory.ebayapi.com} \\
+    Seller & \code{seller.ebayapi.com} \\
+    Bidder & \code{bidder.ebayapi.com} \\
+    Session & \code{session.ebayapi.com} \\
+    Review & \code{review.ebayapi.com} \\
+    \hline
+\end{tabular}
+\caption{Service names and their FQDNs.}
+\label{tab:fqdns}
+\end{table}
+
+% create Seller
+% find seller given public key
+% CU auction
+% get Auction attr.
+% Category
+% session key for seller/bidder
+% Enter bid for auction
+% Find auctions
+% Get a list of winning bidders
+% Add review of auction by winning bidder
+% Get bid history for auction
+
+\section{API Definition}
+
+\subsection{\code{seller.ebayapi.com/newSeller}}
+
+Creates a new seller.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[passwordHash] A SHA-1 hash of the user's password generated by the user.
+    \item[email] The user's default email address. This value is globally unique in the database.
+    \item[publicName] Either the user's name or user name. Will be displayed publicly.
+    \item[addressInfo] Users address formatted as described in the USPS Publication 28, Section 211.
+\end{description}
+
+% \subsubsection{Example Request}
+% 
+% \begin{lstlisting}
+% {
+%   "passwordHash": "cf23df2207d99a74fbe169e3eba035e633b65d94",
+%   "email": "jbrahms@bbb.com",
+%   "publicName": "Johannes Brahms",
+%   "addressInfo": "Karntner Ring 12, 1010 Wien, Austria",
+%   "paymentInfo": "5718 3343 1897 1891, 13/19, 548"
+% }
+% \end{lstlisting}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful operation] Creates a new seller in the database with the
+        provided information and generates a new session key for the new user.
+        Returns the following:
+        \subitem\textbf{status} Status code or message indicating a successful operation.
+        \subitem\textbf{sessionKey} Session key for the new user.
+
+    \item[Email already exists] Email provided in the payload already exists in
+        the database. Nothing in the database is updated. Returns the following:
+        \subitem\textbf{status} Status code or message indicating the email
+        provided already exists in the database.
+
+    \item[Invalid Payload] Malformatted or incomplete payload. Nothing
+        in the database is updated. Returns the following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+
+\end{description}
+
+\subsection{\code{seller.ebayapi.com/getSeller}}
+A read-only operation that retrieves a seller's information by the sellers ID.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[sessionKey] A session key associated with a seller.
+\end{description}
+
+% \subsubsection{Example Request}
+% 
+% \begin{lstlisting}[language=bash]
+% curl -X GET "https://seller.ebayapi.com/seller/d371aaa0-3fee-4c08-9365-bc6761b0f092" -H  "accept: application/json"
+% \end{lstlisting}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful operation] A seller with that sessionKey exists and is
+        returned. If the session key does not exist, or the session key exists
+        but is associated with a buyer, the return payload will be empty aside
+        from a successful status code. The following payload is returned:
+        \subitem\textbf{status} Status code or message indicating a successful
+        search.
+        \subitem\textbf{lastAccess} Datetime stamp of the last time this seller accessed the site while logged in.
+        \subitem\textbf{email} The unique email for this seller.
+        \subitem\textbf{publicName} The public name of this seller.
+        \subitem\textbf{addressInfo} Address of the seller.
+
+    \item[Invalid Payload] malformatted or incomplete payload.
+        Returns the following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+
+\end{description}
+
+\subsection{\code{auction.ebayapi.com/newAuction}}
+Creates a new auction.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[sessionKey] Session key of the seller creating the auction.
+    \item[title] Auction title.
+    \item[description] Long description of the product up for auction. 
+    \item[openDate] ISO 8601 date time format of the date time that the auction becomes available for bidding.
+    \item[closeDate] ISO 8601 date time format of the date time that the
+        auction closes and no longer is available for bids. If there is a highest
+        bidder, the process of awarding the bidder their product and the seller their
+        payment begins. 
+    \item[minimumBid] Starting bid for the auction.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful operation] Creates a new auction in the database with the
+        provided information.  Returns the following:
+        \subitem\textbf{status} Status code or message indicating the auction was created successfully.
+        \subitem\textbf{auctionKey} Session key for the new auction.
+
+    \item[No seller found] Session key either doesn't exist or is associated
+        with a buyer.
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to a bad sessionKey.
+
+    \item[Invalid Payload] Malformatted or incomplete payload. Nothing
+        in the database is updated. Returns the following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+
+\end{description}
+
+\subsection{\code{auction.ebayapi.com/updateAuction}}
+Updates information of an auction. 
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[auctionKey] Key of the option being updated.
+    \item[title] Auction title.
+    \item[description] Long description of the product up for auction. 
+    \item[openDate] ISO 8601 date time format of the date time that the auction becomes available for bidding.
+    \item[closeDate] ISO 8601 date time format of the date time that the
+        auction closes and no longer is available for bids. If there is a highest
+        bidder, the process of awarding the bidder their product and the seller their
+        payment begins. 
+    \item[minimumBid] Starting bid for the auction.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful operation] Updates the auction with the provided
+        auctionKey in the database with the provided information. Parameters
+        not included in the payload are not updated. Parameters that are
+        included but contain null or empty data are updated as such.
+        Returns the following:
+        \subitem\textbf{status} Status code or message indicating the auction was updated successfully.
+
+    \item[No auction found] Auction key either doesn't exist or is associated
+        with a buyer.
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to a bad auctionKey.
+
+    \item[Invalid Payload] Malformatted or incomplete payload. Nothing
+        in the database is updated. Returns the following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+\end{description}
+
+\subsection{\code{auction.ebayapi.com/getAuction}}
+A read-only operation that gets the attributes of an auction.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[auctionKey] Key of the auction being retrieved.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful operation, Auction Found] A auction with that sessionKey exists and is
+        returned.The following payload is
+        returned:
+        \subitem\textbf{status} Status code or message indicating a successful
+        search.
+        \subitem\textbf{sellerSessionKey} Session key of the seller.
+        \subitem\textbf{title} Auction title
+        \subitem\textbf{description} Full description of the auction.
+        \subitem\textbf{openDate} Timestamp of when the auction opens and bidders are allowed to bid.
+        \subitem\textbf{closeDate} Timestamp of when the auction closes and bidders are no longer allowed to bid.
+        \subitem\textbf{auctionStatus} Either a string or status code that indicates the status of the auction.
+        \subitem\textbf{minimumBid} The smallest allowed bid. This will return the greater of the two: either minimum bid the seller created or the highest bid if ones exists.
+
+    \item[Successful operation, No Auction Found] A auction with that
+        sessionKey does not exist. The following is returned.
+        \subitem\textbf{status} Status code or message indicating a successful
+        search, but did not find an auction with the provided key.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+
+\end{description}
+
+\subsection{\code{productcategory.ebayapi.com/getCategory}}
+Gets the children categories of a product category.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[breadCrumb] Bread crumb used to uniquely identify a category.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful operation] A category with that bread crumb was found, or
+        no bread crumb was provided, in which case the categories that do not
+        have a parent bread crumb are considered. The following is returned:
+        \subitem\textbf{status} Status code or message indicating a successful search operation.
+        \subitem\textbf{childrenCategories} List of category bread crumb where the parent crumb equals the crumb provided.
+
+    \item[Successful operation: No Category Found] A category with that
+        bread crumb does not exist. The following is returned.
+        \subitem\textbf{status} Status code or message indicating a successful
+        search, but did not find an category with the provided key.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+
+\end{description}
+
+\subsection{\code{session.ebayapi.com/getBidder}}
+Used to get a session key for a bidder.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[email] Email of the bidder, used to uniquely identify the bidder.
+    \item[passwordHash] SHA-1 hash of the user's password.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful operation] A bidder with that email was found, and the
+        password hash provided matches the password hash stored. The session
+        key will be returned, and the last access timestamp will be touched and
+        updated to the current time stamp. If no session was found for the
+        verified bidder, a new one will be created and returned.
+        \subitem\textbf{status} Status code or message indicating a successful
+        operation.
+        \subitem\textbf{sessionKey} Session key associated with the bidder.
+
+    \item[Authentication Error] Either the provided email was not found, or the
+        password hashes to the found email did not match. This is left vague
+        for security reasons.
+        \subitem\textbf{status} A status code or message indicating a general
+        authentication error.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+\end{description}
+
+\subsection{\code{session.ebayapi.com/getSeller}}
+Used to get a session key for a seller.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[email] Email of the seller, used to uniquely identify the seller.
+    \item[passwordHash] SHA-1 hash of the seller's password.
+\end{description}
+
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful operation] A seller with that email was found, and the
+        password hash provided matches the password hash stored. The session
+        key will be returned, and the last access timestamp will be touched and
+        updated to the current time stamp. If no session was found for the
+        verified seller, a new one will be created and returned.
+        \subitem\textbf{status} Status code or message indicating a successful
+        operation.
+        \subitem\textbf{sessionKey} Session key associated with the seller.
+
+    \item[Authentication Error] Either the provided email was not found, or the
+        password hashes to the found email did not match. This is left vague
+        for security reasons.
+        \subitem\textbf{status} A status code or message indicating a general
+        authentication error.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+\end{description}
+
+
+\subsection{\code{auction.ebayapi.com/getOpenAuctions}}
+Get auctions that match search criteria. Searches are performed by choosing
+every auction where words matched either the title or the description
+(excluding common works like ``the''), and first ordered by how many words
+matched, then ordered by newest to oldest within the auctions that had equal
+word matches.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[keywords] A string of commonly delaminated search terms.
+    \item[searchStartIndex] The index at which the results will return, beginning at searchStartIndex for numberOfItems long.
+    \item[numberOfItems] Number of elements to return.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful Operation] Search operation was successful performed.
+        Search resulted in zero or more results. Results returned are the
+        elements between searchStartIndex and searchStartIndex + numberOfItems
+        index, or the last item of the resulting database query.  New auctions
+        made within the pagination session prior to the current page may not be
+        shown. The following is returned:
+        \subitem\textbf{status} Status code or message indicating a successful
+        search.
+        \subitem\textbf{auctionKeys} List of auctionKeys, ordered by the
+        ordering system mentioned in the description.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+\end{description}
+
+\subsection{\code{auction.ebayapi.com/placeBid}}
+Places a bid on an auction. If this bid is higher than the current max bid, the
+auction maxBid will be updated and the highestBidId will point to this bid.
+
+\subsubsection{Parameters}
+
+\begin{description}
+    \item[auctionKey] Key of the auction that a bid is being placed on.
+    \item[sessionKey] Session key of the bidder placing the bid.
+    \item[bidAmmount] Amount of money being bid on the product. Max amount if isSingleBid is false.
+    \item[isSingleBid] True if the bid amount placed is the absolute price.
+        False if its an automatic auction where the bidAmmount is the max
+        amount of money the bidder will pay and the auction works up to
+        it.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+
+    \item[Successful Bid] Bid successfully placed on an active auction. The bid
+        is greater than or equal to the minimum bid, but may or may not be
+        greater than the current maximum bid on the auction. The following is
+        returned:
+        \subitem\textbf{status} Status code or message indicating a successful
+        bid placement.
+
+    \item[No auction found] auctionKey does not match any active auction. No
+        bid was created.
+        \subitem\textbf{status} Status code or message indicating an invalid
+        auction key.
+
+    \item[No bidder found] session key does not match any bidder. No bid was
+        created.
+        \subitem\textbf{status} Status code or message indicating an invalid
+        bidder key.
+
+    \item[Bid ammount less than minimum] The amount bid is less than the
+        minimum bid of the auction. No bid was created.
+        \subitem\textbf{status} Status code or message indicating an invalid
+        bid amount.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+\end{description}
+
+\subsection{\code{auction.ebayapi.com/getWinningBidderes}}
+Returns a list of auction IDs and bidder IDs from all completed auctions that
+have a status of closed within a specified date time range.
+
+\begin{description}
+    \item[startDateTimeRange] The left bound date time stamp.
+    \item[endDateTimeRange] The right bound date time stamp.
+\end{description}
+ 
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful Operation] Zero or more closed auctions were found within
+        the date time range. The following is returned:
+        \subitem\textbf{status} Status code or message indicating a successful
+        search.
+        \subitem\textbf{winningBidderAuctionPairs} A list of tuples that
+        contain the winning bidder key and the auction key.
+
+    \item[Invalid date range] Either the right bound date is in the future, or
+        the right bound date is less than the left bound date.
+        \subitem\textbf{status} Status code or message indicating invalid date
+        ranges.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+\end{description}
+
+
+\subsection{\code{auction.ebayapi.com/addReview}}
+Adds a product review by the winning bidder.
+
+\subsubsection{Parameters}
+\begin{description}
+    \item[auctionKey] Key of the auction that a review is being made for.
+    \item[sessionKey] Session key of the winning bidder.
+    \item[numStars] Number of stars out of five the bidder is rating the product out of.
+    \item[description] Long review description of the product.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successfully Added Review] A review was successfully created.
+        \subitem\textbf{status} Status code or message indicating a successful
+        operation.
+
+    \item[Session key does not match winning bidder] Session key provider does
+        not match the session key of the winning bidder. No review is created.
+        \subitem\textbf{status} Status code or message indicating an invalid
+        session key.
+
+    \item[Invalid auction key] Auction key provided does not match any closed
+        auctions. No review created.
+        \subitem\textbf{status} Status code or message indicating an invalid
+        auction key.
+
+    \item[Invalid number of stars] Stars provided is either less than zero or
+        more than five. No review is created.
+        \subitem\textbf{status} Status code or message indicating an invalid
+        number of stars.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+\end{description}
+
+\subsection{\code{auction.ebayapi.com/getAllBids}}
+Get all bids for specific auction.
+
+\subsubsection{Parameters}
+\begin{description}
+    \item[auctionKey] Key of the auction that the user is getting all bids for.
+\end{description}
+
+\subsubsection{Responses}
+
+\begin{description}
+    \item[Successful Operation] Zero or more bids were found for an auction.
+        The following is returned:
+        \subitem\textbf{status} Status code or message indicating a successful
+        operation
+        \subitem\textbf{bids} A 2D list where each 2nd Dimensional list
+        represents a bid, containing the bidderKey, bidAmmount, timeOfBid, and
+        bidType.
+
+    \item[Invalid Auction] No auction with the provided auction key exists.
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid auction key.
+
+    \item[Invalid Payload] malformatted or incomplete payload. Returns the
+        following:
+        \subitem\textbf{status} Status code or message indicating a failed
+        request due to an invalid payload.
+
+\end{description}
+
+\end{document}
