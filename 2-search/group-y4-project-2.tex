@@ -1,0 +1,61 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{fullpage}
+\usepackage[USenglish]{babel}
+\usepackage{authblk}
+
+\usepackage{todonotes}
+
+\title{Project 2 \\ eBay Search Service}
+
+\author{Isabel Giang}
+\author{Maxwell Wenger}
+\affil{CSS490 Group Y4}
+
+\date{January 26, 2020}
+
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+% Problem:
+% EBay Search has gotten quite slow.  We were able to gain some time by adding
+% an index to the Master DB, but we are worried about long term scaling.  We
+% need to settle on a design for a SearchServce that would be used to search
+% for Auctions by Keyword and/or Category (breadcrumb)
+
+% Deliverables:
+% Create a design document that explains how you would solve the search
+% problem.  This document will be read by the various engineers in the company
+% for evaluation of your approach,so your design needs to be understandable to
+% them based on the document.
+
+\section{Overview}
+% State business problem
+
+% Clarify what kinds of searching we are doing such as:
+% - Allow searching for only active auctions 
+% - Allow searching for any auction.
+% - Allow a bidder to find all of their active auctions
+% - Administrator looking for a specific set of auctions that have expired
+% - Etc
+
+% Need Database Schema
+
+\section{API Specification}
+
+\section{Service Intervals}
+% Describe what internal processes you do based on APIs.
+% I.E. What happens to DB when xyz is called.
+
+\section{Changes to eBay Master Service}
+% For any changes to the ebay master service, we need to provide:
+% - Description of schema changes (not a full schema drawing)
+% - Description of behavioral changes
+%   - Describe new control  flow
+%   - Describe transactional events
+%   - Describe what happens on timeout from the search service.
+% - Any additional API calls that are needed to be added to master service
+
+
+\end{document}
