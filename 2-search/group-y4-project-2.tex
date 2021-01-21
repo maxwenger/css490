@@ -31,7 +31,20 @@
 % them based on the document.
 
 \section{Overview}
+\subsection{Problem Statement}
+In the last few months, eBay users have reported increasingly slow response times from eBay's website when searching for auctions. Application log analysis for the eBay Master Service has confirmed that our FindAuctions API for the eBay Master service takes significantly longer to return a response when we search for auctions using keywords. It also takes longer to search for a large number of auctions.
+
+This is negatively impacting eBay's user experience for existing users and is hindering the website's chances of being adopted by new users.
 % State business problem
+
+Performing further analysis on the eBay Master service schema shows that the FindAuctions API must scan the entire table to first find active auctions. Then it must scan those active auctions to find auctions that have titles with the keywords we are looking for.
+
+To partially address this problem, we have added an AuctionStatus index to the Auction table so we can immediately access all active auctions instead of search for all auctions every time we query with keywords. 
+
+This speeds up the FindAuctions API enough to fix the poor user experience temporarily, but this will not be enough as the company grows. The number of records in the Auction table, and subsequently, the number of active auctions will increase at an exponential rate.
+\subsection{Solution}
+
+To solve this, we want to create a separate search service that will handle searching for auctions by keyword and/or category.
 
 % Clarify what kinds of searching we are doing such as:
 % - Allow searching for only active auctions 
@@ -42,9 +55,9 @@
 
 % Need Database Schema
 
-\section{API Specification}
+\section{eBay Search Service API Specification}
 
-\section{Service Intervals}
+\section{eBay Search Service Intervals}
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
 
@@ -56,6 +69,49 @@
 %   - Describe transactional events
 %   - Describe what happens on timeout from the search service.
 % - Any additional API calls that are needed to be added to master service
+
+\section{Appendix}
+
+\subsection{ebay Master Service API Specification}
+This section defines and explains the eBay Master Service API.
+
+
+\subsection{API List}
+External synchronous, point-to-point API calls.
+
+\begin{enumerate}
+	\item CreateSeller - Creates a new seller in the system.
+	\item GetSeller - Get the Seller information for a user given a session key
+	\item CreateAuction - Allow a Seller to create a new auction
+	\item GetAuction - Get information about a specific auction
+	\item UpdateAuction - Update an existing auction
+	\item GetCategories - Get sub-categories from a node in the eBay category tree
+	\item FindOpenAuctions - Find auctions that match some search criteria
+	\item CreateBid - Allow a bidder to place a bid on an auction
+	\item GetWinningBidders - Get winning bidder information for some range of time
+	\item CreateReview - Allow the winning bidder to write a review
+	\item GetBidHistory - Get bid history for an auction
+\end{enumerate}
+
+
+\subsection{API Definitions}
+\subsubsection{CreateSeller}
+\subsubsection{GetSeller}
+\subsubsection{UpdateSeller}
+\subsubsection{CreateAuction}
+\subsubsection{GetAuction}
+\subsubsection{UpdateAuction}
+\subsubsection{GetCategories}
+\subsubsection{GetSessionKey}
+\subsubsection{FindOpenAuctions}
+\subsubsection{CreateBid}
+\subsubsection{GetWinningBidders}
+\subsubsection{CreateReview}
+\subsubsection{GetBidHistory}
+
+
+\subsection{eBay Master Service Schema}
+
 
 
 \end{document}
