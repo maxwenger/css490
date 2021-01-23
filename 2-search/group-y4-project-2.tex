@@ -3,6 +3,67 @@
 \usepackage[USenglish]{babel}
 \usepackage{authblk}
 
+\usepackage{listings}
+\usepackage{xcolor}
+
+\colorlet{punct}{red!60!black}
+\definecolor{background}{HTML}{EEEEEE}
+\definecolor{delim}{RGB}{20,105,176}
+\colorlet{numb}{magenta!60!black}
+
+\lstdefinelanguage{json}{
+    basicstyle=\normalfont\ttfamily,
+    numbers=left,
+    numberstyle=\scriptsize,
+    stepnumber=1,
+    numbersep=8pt,
+    showstringspaces=false,
+    breaklines=true,
+    frame=lines,
+    backgroundcolor=\color{background},
+    literate=
+     *{0}{{{\color{numb}0}}}{1}
+      {1}{{{\color{numb}1}}}{1}
+      {2}{{{\color{numb}2}}}{1}
+      {3}{{{\color{numb}3}}}{1}
+      {4}{{{\color{numb}4}}}{1}
+      {5}{{{\color{numb}5}}}{1}
+      {6}{{{\color{numb}6}}}{1}
+      {7}{{{\color{numb}7}}}{1}
+      {8}{{{\color{numb}8}}}{1}
+      {9}{{{\color{numb}9}}}{1}
+      {:}{{{\color{punct}{:}}}}{1}
+      {,}{{{\color{punct}{,}}}}{1}
+      {\{}{{{\color{delim}{\{}}}}{1}
+      {\}}{{{\color{delim}{\}}}}}{1}
+      {[}{{{\color{delim}{[}}}}{1}
+      {]}{{{\color{delim}{]}}}}{1},
+}
+
+\lstdefinelanguage{tableJson}{
+    basicstyle=\normalfont\ttfamily,
+    showstringspaces=false,
+    breaklines=true,
+    literate=
+     *{0}{{{\color{numb}0}}}{1}
+      {1}{{{\color{numb}1}}}{1}
+      {2}{{{\color{numb}2}}}{1}
+      {3}{{{\color{numb}3}}}{1}
+      {4}{{{\color{numb}4}}}{1}
+      {5}{{{\color{numb}5}}}{1}
+      {6}{{{\color{numb}6}}}{1}
+      {7}{{{\color{numb}7}}}{1}
+      {8}{{{\color{numb}8}}}{1}
+      {9}{{{\color{numb}9}}}{1}
+      {:}{{{\color{punct}{:}}}}{1}
+      {,}{{{\color{punct}{,}}}}{1}
+      {\{}{{{\color{delim}{\{}}}}{1}
+      {\}}{{{\color{delim}{\}}}}}{1}
+      {[}{{{\color{delim}{[}}}}{1}
+      {]}{{{\color{delim}{]}}}}{1},
+}
+
+
 \usepackage{todonotes}
 
 \title{Project 2 \\ eBay Search Service}
@@ -16,6 +77,7 @@
 
 \begin{document}
 \maketitle
+\setcounter{tocdepth}{2}
 \tableofcontents
 
 % Problem:
@@ -32,23 +94,39 @@
 
 \section{Overview}
 \subsection{Problem Statement}
-In the last few months, eBay users have reported increasingly slow response times from eBay's website when searching for auctions. Application log analysis for the eBay Master Service has confirmed that our FindAuctions API for the eBay Master service takes significantly longer to return a response when we search for auctions using keywords. It also takes longer to search for a large number of auctions.
+In the last few months, eBay users have reported increasingly slow response
+times from eBay's website when searching for auctions. Application log analysis
+for the eBay Master Service has confirmed that our FindAuctions API for the
+eBay Master service takes significantly longer to return a response when we
+search for auctions using keywords. It also takes longer to search for a large
+number of auctions.
 
-This is negatively impacting eBay's user experience for existing users and is hindering the website's chances of being adopted by new users.
+This is negatively impacting eBay's user experience for existing users and is
+hindering the website's chances of being adopted by new users.
 % State business problem
 
-Performing further analysis on the eBay Master service schema shows that the FindAuctions API must scan the entire table to first find active auctions. Then it must scan those active auctions to find auctions that have titles with the keywords we are looking for.
+Performing further analysis on the eBay Master service schema shows that the
+FindAuctions API must scan the entire table to first find active auctions. Then
+it must scan those active auctions to find auctions that have titles with the
+keywords we are looking for.
 
-To partially address this problem, we have added an AuctionStatus index to the Auction table so we can immediately access all active auctions instead of search for all auctions every time we query with keywords. 
+To solve this problem, we have created an additional search database that
+contains only the necessary auction data required to for search functionality.
+We have then indexed the database by both 
 
-This speeds up the FindAuctions API enough to fix the poor user experience temporarily, but this will not be enough as the company grows. The number of records in the Auction table, and subsequently, the number of active auctions will increase at an exponential rate.
+This speeds up the FindAuctions API enough to fix the poor user experience
+temporarily, but this will not be enough as the company grows. The number of
+records in the Auction table, and subsequently, the number of active auctions
+will increase at an exponential rate.
+
 \subsection{Solution}
 
-To solve this, we want to create a separate search service that will handle searching for auctions by keyword and/or category.
+To solve this, we want to create a separate search service that will handle
+searching for auctions by keyword and/or category.
 
 % Clarify what kinds of searching we are doing such as:
 % - Allow searching for only active auctions 
-% - Allow searching for any auction.
+% - this one -> Allow searching for any auction.
 % - Allow a bidder to find all of their active auctions
 % - Administrator looking for a specific set of auctions that have expired
 % - Etc
@@ -57,11 +135,113 @@ To solve this, we want to create a separate search service that will handle sear
 
 \section{eBay Search Service API Specification}
 
+\subsection{createSearchableAuction}
+This creates an entry in the search database for the auction, all of the
+auction's keywords, and the auction category.
+
+\subsubsection{Input}
+\begin{lstlisting}[language=json,firstnumber=1]
+{
+    "auctionKey": <string>,
+    "title": <string>,
+    "closeDate": <string>,
+    "status": <string>,
+    "breadcrumb": <string>
+}
+\end{lstlisting}
+
+\subsubsection{Output}
+\begin{center}
+    \begin{tabular}{| p{5cm} | l |}
+        \hline
+        \textbf{Scenario} & \textbf{Response} \\
+        \hline
+        Successfully created search entry. & 
+        \begin{lstlisting}[boxpos=t,language=tableJson,firstnumber=1]
+{
+    "success": true
+}
+        \end{lstlisting} \\ 
+        \hline
+            TODO: Make error states & Yeah! What he said! \\
+        \hline
+    \end{tabular}
+\end{center}
+
+\subsection{updateSearchableAuction}
+Update searchable auction will update fields, keywords, and categories of an
+existing auction in the search table. New keywords will be generated if a new
+title is provided. The new keywords will be added to the database, and keywords
+associated with they auction key but were not again generated from the updated
+title will be removed from the database. The fields will be based on the
+auction key, therefore the auction key may not be updated. Any optional fields
+not included in the message to the service will not be changed.
+
+\subsubsection{Input}
+\begin{lstlisting}[language=json,firstnumber=1]
+{
+    "auctionKey": <string>,
+    "title": <string>, // optional
+    "closeDate": <string>, // optional
+    "status": <string>, // optional
+    "breadcrumb": <string> // optional
+}
+\end{lstlisting}
+
+\subsubsection{Output}
+\begin{center}
+    \begin{tabular}{| p{5cm} | l |}
+        \hline
+        \textbf{Scenario} & \textbf{Response} \\
+        \hline
+        Successfully updated search entry. &
+        \begin{lstlisting}[boxpos=t,language=tableJson,firstnumber=1]
+{
+    "success": true
+}
+        \end{lstlisting} \\ 
+        \hline
+        Provided auction key does not exist in the search database. & 
+        \begin{lstlisting}[boxpos=t,language=tableJson,firstnumber=1]
+{
+    "success": false,
+    "exception": "auctionKeyNotFound"
+}
+        \end{lstlisting} \\
+        \hline
+            TODO: Make error states & Yeah! What he said! \\
+        \hline
+    \end{tabular}
+\end{center}
+
+
+\subsection{findAuctions}
+
+
+
 \section{eBay Search Service Intervals}
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
 
 \section{Changes to eBay Master Service}
+
+\subsection{createAuction}
+
+Creates an auction as it did before, although now the createAuction service is
+now responsible for updating the search database.
+
+It does this by first splitting up the title into keywords. The decision on how
+to identify keywords will be up to the implementation. Then, the createAuction
+service will create a new entry in the Auction table in the search database for
+this auction using the same information used to create the auction table in the
+main service database. Then, it will create an AuctionTitleWord entry with the
+string text of the word and the auction key for each previously identified
+keyword. Then, it will create an AuctionCatagory entry with the respective
+auction category.
+
+If three calls to the search service fails, the call will be queued up to be
+attempted again with other failed calls at a regular interval.
+
 % For any changes to the ebay master service, we need to provide:
 % - Description of schema changes (not a full schema drawing)
 % - Description of behavioral changes
