@@ -3,6 +3,7 @@
 \usepackage{fullpage}
 \usepackage[USenglish]{babel}
 \usepackage{authblk}
+\usepackage{hyperref}
 
 \usepackage{listings}
 \usepackage{xcolor}
@@ -158,6 +159,7 @@ searching for auctions by keyword and/or category.
 \section{eBay Search Service API Specification}
 
 \subsection{createSearchableAuction}
+\label{ref:csa}
 This creates an entry in the search database for the auction, all of the
 auction's keywords, and the auction category.
 
@@ -191,6 +193,7 @@ auction's keywords, and the auction category.
 \end{center}
 
 \subsection{updateSearchableAuction}
+\label{ref:usa}
 Update searchable auction will update fields, keywords, and categories of an
 existing auction in the search table. New keywords will be generated if a new
 title is provided. The new keywords will be added to the database, and keywords
@@ -302,16 +305,12 @@ the first result.
 \subsection{createAuction}
 
 Creates an auction as it did before, although now the createAuction service is
-now responsible for updating the search database.
+responsible for calling createSearchableAuction to create a search entry for
+the auction.
 
-It does this by first splitting up the title into keywords. The decision on how
-to identify keywords will be up to the implementation. Then, the createAuction
-service will create a new entry in the Auction table in the search database for
-this auction using the same information used to create the auction table in the
-main service database. Then, it will create an AuctionTitleWord entry with the
-string text of the word and the auction key for each previously identified
-keyword. Then, it will create an AuctionCatagory entry with the respective
-auction category.
+The impact on the database from createAuction is documented in the master api
+documentation. The impact on the database from createSearchableAuction is
+documented in section \nameref{ref:csa}.
 
 If three calls to the search service fails, the call will be queued up to be
 attempted again with other failed calls at a regular interval.
@@ -323,6 +322,19 @@ attempted again with other failed calls at a regular interval.
 %   - Describe transactional events
 %   - Describe what happens on timeout from the search service.
 % - Any additional API calls that are needed to be added to master service
+
+\subsection{updateAuction}
+
+Update auction will work as it did before. Except, now, update auction will
+call updateSearchableAuction with the updated parameters it will receive.
+
+The impact on the database from updateAuction is documented in the master api
+documentation. The impact on the database from updateSearchableAuction is
+documented in section \nameref{ref:usa}.
+
+If three calls to the search service fails, the call will be queued up to be
+attempted again with other failed calls at a regular interval.
+
 
 
 \end{document}
