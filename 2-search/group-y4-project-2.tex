@@ -108,7 +108,7 @@ for the eBay Master Service has confirmed that our FindAuctions API for the
 eBay Master service takes significantly longer to return a response when we
 search for auctions using keywords. It also takes longer to search for a large
 number of auctions.
-
+\vspace{\baselineskip}
 This is negatively impacting eBay's user experience for existing users and is
 hindering the website's chances of being adopted by new users.
 
@@ -119,19 +119,20 @@ Performing further analysis on the eBay Master service schema shows that the
 FindAuctions API must scan the entire table to first find active auctions. Then
 it must scan those active auctions to find auctions that have titles with the
 keywords we are looking for.
-
+\vspace{\baselineskip}
 To solve this problem, we have created an additional search database that
 contains only the necessary auction data required to for search functionality.
 We have then indexed the database by both 
-
+\vspace{\baselineskip}
 This speeds up the FindAuctions API enough to fix the poor user experience
 temporarily, but this will not be enough as the company grows. The number of
 records in the Auction table, and subsequently, the number of active auctions
 will increase at an exponential rate.
 
+\vspace{\baselineskip}
+
 \subsection{Solution}
 \subsection{Current Solution}
-\vspace{\baselineskip}
 To partially address this problem, we have added an AuctionStatus index to the
 Auction table so we can immediately access all active auctions instead of
 search for all auctions every time we query with keywords. 
@@ -144,8 +145,19 @@ will increase at an exponential rate.
 
 \subsection{Next Steps}
 
-To solve this, we want to create a separate search service that will handle
+To solve this, we want to create a separate search service as another step 
+towards eBay's move to a microservice oriented architecture that will handle
 searching for auctions by keyword and/or category.
+
+\vspace{\baselineskip} 
+
+We will call this new service 'AuctionSearch'. This search service will have
+its own database that will only be externally accessible via its API.
+\vspace{\baselineskip}
+
+Whenever a new FindAuction API request is made, this service will perform
+the required business logic and databases accesses instead of the eBay Master service.
+
 
 % Clarify what kinds of searching we are doing such as:
 % - Allow searching for only active auctions 
@@ -155,7 +167,7 @@ searching for auctions by keyword and/or category.
 % - Etc
 
 % Need Database Schema
-
+ 
 \section{eBay Search Service API Specification}
 
 \subsection{createSearchableAuction}
@@ -264,6 +276,57 @@ the first result.
 }
 \end{lstlisting}
 
+findAuctions will return a number of results based on the user's query. The
+parameters search by ``anding'' the results together (e.g. if you ask for a
+keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
+electronics, red LG phones will be returned, but not red Nokia phones, or red
+LG refrigerators). To perform searches that ``or'' search terms, multiple
+searches must be made. lastAuctionKey and numResults are to be used for
+pagination. findAuctions will return numResults number of entries ordered from
+oldest to newest, starting from the lastAuctionKey. If no lastAuctionKey is
+provided, findAuctions will return numResults number of results starting from
+the first result.
+
+\subsubsection{input}
+\begin{lstlisting}[language=json,firstnumber=1]
+{
+    "keywords": [ <string>, ...], // optional
+    "status": <string>, // optional
+    "breadcrumb": <string>, // optional
+    "lastAuctionKey": <string>, // optional
+    "numresults": <string>
+}
+\end{lstlisting}
+
+\subsubsection{output}
+\begin{center}
+    \begin{tabular}{| p{5cm} | l |}
+        \hline
+        \textbf{scenario} & \textbf{response} \\
+        \hline
+        Successfully search with found results. &
+        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
+{
+    "success": true,
+    "results": [ auctionKey <string>, ...]
+}
+        \end{lstlisting} \\ 
+        \hline
+ \hline
+        Successfully search with no results. &
+        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
+{
+    "success": true,
+    "results": [ ]
+}
+        \end{lstlisting} \\ 
+        \hline
+            todo: make error states & yeah! what he said! \\
+        \hline
+    \end{tabular}
+\end{center}
+
+
 \subsubsection{output}
 \begin{center}
     \begin{tabular}{| p{5cm} | l |}
@@ -331,8 +394,5 @@ documented in section \nameref{ref:usa}.
 
 If three calls to the search service fails, the call will be queued up to be
 attempted again with other failed calls at a regular interval.
-
-
-
 
 \end{document}
