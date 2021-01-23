@@ -237,6 +237,44 @@ not included in the message to the service will not be changed.
     \end{tabular}
 \end{center}
 
+\subsection{logging}
+
+\begin{lstlisting}[boxpos=t,language=json,firstnumber=1]
+{
+    "start": <string>,
+    "duration": <string>,
+    "api": <string>,
+    "params":
+        {
+            "original": {
+                "auctionkey": <string>,
+                "title": <string>, // optional
+                "closedate": <string>, // optional
+                "status": <string>, // optional
+                "breadcrumb": <string> // optional 
+            }, 
+            "updated": {
+                "auctionkey": <string>,
+                "title": <string>, // optional
+                "closedate": <string>, // optional
+                "status": <string>, // optional
+                "breadcrumb": <string> // optional 
+            }
+        }
+}           
+\end{lstlisting}
+
+\begin{itemize}
+    \item \textbf{start} The time the service first receives the call.
+    \item \textbf{duration} The amount of time it takes from when the service
+        receives the call to when the service responds.
+    \item \textbf{api} The name of the API that is called.
+    \item \textbf{params} The original and updated data that the API changed.
+        Optional data that was not changed is not included in either the
+        updated or original logs.
+\end{itemize}
+
+
 
 \subsection{findAuctions}
 findAuctions will return a number of results based on the user's query. The
@@ -260,57 +298,6 @@ the first result.
     "numresults": <string>
 }
 \end{lstlisting}
-
-findAuctions will return a number of results based on the user's query. The
-parameters search by ``anding'' the results together (e.g. if you ask for a
-keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
-electronics, red LG phones will be returned, but not red Nokia phones, or red
-LG refrigerators). To perform searches that ``or'' search terms, multiple
-searches must be made. lastAuctionKey and numResults are to be used for
-pagination. findAuctions will return numResults number of entries ordered from
-oldest to newest, starting from the lastAuctionKey. If no lastAuctionKey is
-provided, findAuctions will return numResults number of results starting from
-the first result.
-
-\subsubsection{input}
-\begin{lstlisting}[language=json,firstnumber=1]
-{
-    "keywords": [ <string>, ...], // optional
-    "status": <string>, // optional
-    "breadcrumb": <string>, // optional
-    "lastAuctionKey": <string>, // optional
-    "numresults": <string>
-}
-\end{lstlisting}
-
-\subsubsection{output}
-\begin{center}
-    \begin{tabular}{| p{5cm} | l |}
-        \hline
-        \textbf{scenario} & \textbf{response} \\
-        \hline
-        Successfully search with found results. &
-        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
-{
-    "success": true,
-    "results": [ auctionKey <string>, ...]
-}
-        \end{lstlisting} \\ 
-        \hline
- \hline
-        Successfully search with no results. &
-        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
-{
-    "success": true,
-    "results": [ ]
-}
-        \end{lstlisting} \\ 
-        \hline
-            todo: make error states & yeah! what he said! \\
-        \hline
-    \end{tabular}
-\end{center}
-
 
 \subsubsection{output}
 \begin{center}
