@@ -108,14 +108,9 @@ eBay Master service takes significantly longer to return a response when we
 search for auctions using keywords. It also takes longer to search for a large
 number of auctions.
 
-<<<<<<< HEAD
 This is negatively impacting eBay's user experience for existing users and is
 hindering the website's chances of being adopted by new users.
-=======
-\vspace{\baselineskip}
 
-This is negatively impacting eBay's user experience for existing users and is hindering the website's chances of being adopted by new users.
->>>>>>> 693c30cc60390d59e165b11f0b26c3fbd987d6bd
 % State business problem
 \vspace{\baselineskip}
 
@@ -128,22 +123,25 @@ To solve this problem, we have created an additional search database that
 contains only the necessary auction data required to for search functionality.
 We have then indexed the database by both 
 
-<<<<<<< HEAD
 This speeds up the FindAuctions API enough to fix the poor user experience
 temporarily, but this will not be enough as the company grows. The number of
 records in the Auction table, and subsequently, the number of active auctions
 will increase at an exponential rate.
 
 \subsection{Solution}
-=======
 \subsection{Current Solution}
 \vspace{\baselineskip}
-To partially address this problem, we have added an AuctionStatus index to the Auction table so we can immediately access all active auctions instead of search for all auctions every time we query with keywords. 
+To partially address this problem, we have added an AuctionStatus index to the
+Auction table so we can immediately access all active auctions instead of
+search for all auctions every time we query with keywords. 
 
 \vspace{\baselineskip}
-This speeds up the FindAuctions API enough to fix the poor user experience temporarily, but this will not be enough as the company grows. The number of records in the Auction table, and subsequently, the number of active auctions will increase at an exponential rate.
+This speeds up the FindAuctions API enough to fix the poor user experience
+temporarily, but this will not be enough as the company grows. The number of
+records in the Auction table, and subsequently, the number of active auctions
+will increase at an exponential rate. 
+
 \subsection{Next Steps}
->>>>>>> 693c30cc60390d59e165b11f0b26c3fbd987d6bd
 
 To solve this, we want to create a separate search service that will handle
 searching for auctions by keyword and/or category.
@@ -159,7 +157,6 @@ searching for auctions by keyword and/or category.
 
 \section{eBay Search Service API Specification}
 
-<<<<<<< HEAD
 \subsection{createSearchableAuction}
 This creates an entry in the search database for the auction, all of the
 auction's keywords, and the auction category.
@@ -242,12 +239,6 @@ not included in the message to the service will not be changed.
 
 \subsection{findAuctions}
 
-
-=======
-\subsection{API List}
-
-\subsection{API Specification}
->>>>>>> 693c30cc60390d59e165b11f0b26c3fbd987d6bd
 
 \section{eBay Search Service Intervals}
 % Describe what internal processes you do based on APIs.
