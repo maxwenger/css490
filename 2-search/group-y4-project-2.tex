@@ -100,6 +100,7 @@
 % for evaluation of your approach,so your design needs to be understandable to
 % them based on the document.
 
+\pagebreak
 \section{Overview}
 \subsection{Problem Statement}
 In the last few months, eBay users have reported increasingly slow response
@@ -119,46 +120,32 @@ Performing further analysis on the eBay Master service schema shows that the
 FindAuctions API must scan the entire table to first find active auctions. Then
 it must scan those active auctions to find auctions that have titles with the
 keywords we are looking for.
-\vspace{\baselineskip}
-To solve this problem, we have created an additional search database that
-contains only the necessary auction data required to for search functionality.
-We have then indexed the database by both keyword and category.
+
+\subsection{Temporary Solution}
+
+As a bandaid solution to temporarily address this problem, we have added an 
+AuctionStatus index to the Auction table of the eBay Master Service database.
+This allows us to immediately access all active auctions instead of being forced 
+to scan the entire Auction table to find active auctions before querying with keywords. 
+
 \vspace{\baselineskip}
 This speeds up the FindAuctions API enough to fix the poor user experience
 temporarily, but this will not be enough as the company grows. The number of
 records in the Auction table, and subsequently, the number of active auctions
 will increase at an exponential rate.
 
-\vspace{\baselineskip}
-
-\subsection{Solution}
-\subsection{Current Solution}
-To partially address this problem, we have added an AuctionStatus index to the
-Auction table so we can immediately access all active auctions instead of
-search for all auctions every time we query with keywords. 
-
-\vspace{\baselineskip}
-This speeds up the FindAuctions API enough to fix the poor user experience
-temporarily, but this will not be enough as the company grows. The number of
-records in the Auction table, and subsequently, the number of active auctions
-will increase at an exponential rate. 
-
 \subsection{Next Steps}
+To solve this more permanently, we want to create a separate search service
+that will handle searching for auctions by keyword and/or category. 
+We will call this new service 'AuctionSearch'. 
 
-To solve this, we want to create a separate search service as another step 
-towards eBay's move to a microservice oriented architecture that will handle
-searching for auctions by keyword and/or category.
-
-\vspace{\baselineskip} 
-
-We will call this new service 'AuctionSearch'. This search service will have
-its own database that will only be externally accessible via its API.
 \vspace{\baselineskip}
+This search service will have its own database that can only be changed
+by external users via its API. Whenever a new FindAuction API request is made, 
+this service will perform the required business logic and databases accesses 
+instead of the eBay Master service.
 
-Whenever a new FindAuction API request is made, this service will perform
-the required business logic and databases accesses instead of the eBay Master service.
-
-
+\pagebreak
 % Clarify what kinds of searching we are doing such as:
 % - Allow searching for only active auctions 
 % - this one -> Allow searching for any auction.
@@ -172,8 +159,8 @@ the required business logic and databases accesses instead of the eBay Master se
 
 \subsection{createSearchableAuction}
 \label{ref:csa}
-This creates an entry in the search database for the auction, all of the
-auction's keywords, and the auction category.
+Creates an auction that is searchable by keywords and category. 
+
 
 \subsubsection{Input}
 \begin{lstlisting}[language=json,firstnumber=1]
@@ -207,9 +194,7 @@ auction's keywords, and the auction category.
 
 \subsection{updateSearchableAuction}
 \label{ref:usa}
-Update searchable auction will update fields, keywords, and categories of an
-existing auction in the search table. New keywords will be generated if a new
-title is provided. The new keywords will be added to the database, and keywords
+New keywords will be generated if a new title is provided. The new keywords will be added to the database, and keywords
 associated with they auction key but were not again generated from the updated
 title will be removed from the database. The fields will be based on the
 auction key, therefore the auction key may not be updated. Any optional fields
@@ -358,7 +343,15 @@ the first result.
 \section{eBay Search Service Intervals}
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
+\subsection{createAuction}
+This creates an entry in the AuctionSearch database for the auction, all of the
+auction's keywords, and the auction category.
 
+\subsection{updateAuction}
+Update searchable auction will update fields, keywords, and categories of an
+existing auction in the search table.
+
+\subsection{findAuctions}
 
 \section{Changes to eBay Master Service}
 
