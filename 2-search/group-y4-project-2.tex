@@ -252,6 +252,44 @@ not included in the message to the service will not be changed.
     \end{tabular}
 \end{center}
 
+\subsection{logging}
+
+\begin{lstlisting}[boxpos=t,language=json,firstnumber=1]
+{
+    "start": <string>,
+    "duration": <string>,
+    "api": <string>,
+    "params":
+        {
+            "original": {
+                "auctionkey": <string>,
+                "title": <string>, // optional
+                "closedate": <string>, // optional
+                "status": <string>, // optional
+                "breadcrumb": <string> // optional 
+            }, 
+            "updated": {
+                "auctionkey": <string>,
+                "title": <string>, // optional
+                "closedate": <string>, // optional
+                "status": <string>, // optional
+                "breadcrumb": <string> // optional 
+            }
+        }
+}           
+\end{lstlisting}
+
+\begin{itemize}
+    \item \textbf{start} The time the service first receives the call.
+    \item \textbf{duration} The amount of time it takes from when the service
+        receives the call to when the service responds.
+    \item \textbf{api} The name of the API that is called.
+    \item \textbf{params} The original and updated data that the API changed.
+        Optional data that was not changed is not included in either the
+        updated or original logs.
+\end{itemize}
+
+
 
 \subsection{findAuctions}
 findAuctions will return a number of results based on the user's query. The
