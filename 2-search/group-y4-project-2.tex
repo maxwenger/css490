@@ -3,6 +3,7 @@
 \usepackage{fullpage}
 \usepackage[USenglish]{babel}
 \usepackage{authblk}
+\usepackage{hyperref}
 
 \usepackage{listings}
 \usepackage{xcolor}
@@ -158,6 +159,7 @@ searching for auctions by keyword and/or category.
 \section{eBay Search Service API Specification}
 
 \subsection{createSearchableAuction}
+\label{ref:csa}
 This creates an entry in the search database for the auction, all of the
 auction's keywords, and the auction category.
 
@@ -190,7 +192,9 @@ auction's keywords, and the auction category.
     \end{tabular}
 \end{center}
 
+
 \subsection{updateSearchableAuction}
+\label{ref:usa}
 Update searchable auction will update fields, keywords, and categories of an
 existing auction in the search table. New keywords will be generated if a new
 title is provided. The new keywords will be added to the database, and keywords
@@ -199,46 +203,94 @@ title will be removed from the database. The fields will be based on the
 auction key, therefore the auction key may not be updated. Any optional fields
 not included in the message to the service will not be changed.
 
-\subsubsection{Input}
+\subsubsection{input}
 \begin{lstlisting}[language=json,firstnumber=1]
 {
-    "auctionKey": <string>,
+    "auctionkey": <string>,
     "title": <string>, // optional
-    "closeDate": <string>, // optional
+    "closedate": <string>, // optional
     "status": <string>, // optional
     "breadcrumb": <string> // optional
 }
 \end{lstlisting}
 
-\subsubsection{Output}
+\subsubsection{output}
 \begin{center}
     \begin{tabular}{| p{5cm} | l |}
         \hline
-        \textbf{Scenario} & \textbf{Response} \\
+        \textbf{scenario} & \textbf{response} \\
         \hline
-        Successfully updated search entry. &
-        \begin{lstlisting}[boxpos=t,language=tableJson,firstnumber=1]
+        successfully updated search entry. &
+        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
 {
     "success": true
 }
         \end{lstlisting} \\ 
         \hline
-        Provided auction key does not exist in the search database. & 
-        \begin{lstlisting}[boxpos=t,language=tableJson,firstnumber=1]
+        provided auction key does not exist in the search database. & 
+        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
 {
     "success": false,
-    "exception": "auctionKeyNotFound"
+    "exception": "auctionkeynotfound"
 }
         \end{lstlisting} \\
         \hline
-            TODO: Make error states & Yeah! What he said! \\
+            todo: make error states & yeah! what he said! \\
         \hline
     \end{tabular}
 \end{center}
 
 
 \subsection{findAuctions}
+findAuctions will return a number of results based on the user's query. The
+parameters search by ``anding'' the results together (e.g. if you ask for a
+keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
+electronics, red LG phones will be returned, but not red Nokia phones, or red
+LG refrigerators). To perform searches that ``or'' search terms, multiple
+searches must be made. lastAuctionKey and numResults are to be used for
+pagination. findAuctions will return numResults number of entries ordered from
+oldest to newest, starting from the lastAuctionKey. If no lastAuctionKey is
+provided, findAuctions will return numResults number of results starting from
+the first result.
 
+\subsubsection{input}
+\begin{lstlisting}[language=json,firstnumber=1]
+{
+    "keywords": [ <string>, ...], // optional
+    "status": <string>, // optional
+    "breadcrumb": <string>, // optional
+    "lastAuctionKey": <string>, // optional
+    "numresults": <string>
+}
+\end{lstlisting}
+
+\subsubsection{output}
+\begin{center}
+    \begin{tabular}{| p{5cm} | l |}
+        \hline
+        \textbf{scenario} & \textbf{response} \\
+        \hline
+        Successfully search with found results. &
+        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
+{
+    "success": true,
+    "results": [ auctionKey <string>, ...]
+}
+        \end{lstlisting} \\ 
+        \hline
+ \hline
+        Successfully search with no results. &
+        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
+{
+    "success": true,
+    "results": [ ]
+}
+        \end{lstlisting} \\ 
+        \hline
+            todo: make error states & yeah! what he said! \\
+        \hline
+    \end{tabular}
+\end{center}
 
 \section{eBay Search Service Intervals}
 % Describe what internal processes you do based on APIs.
@@ -250,16 +302,12 @@ not included in the message to the service will not be changed.
 \subsection{createAuction}
 
 Creates an auction as it did before, although now the createAuction service is
-now responsible for updating the search database.
+responsible for calling createSearchableAuction to create a search entry for
+the auction.
 
-It does this by first splitting up the title into keywords. The decision on how
-to identify keywords will be up to the implementation. Then, the createAuction
-service will create a new entry in the Auction table in the search database for
-this auction using the same information used to create the auction table in the
-main service database. Then, it will create an AuctionTitleWord entry with the
-string text of the word and the auction key for each previously identified
-keyword. Then, it will create an AuctionCatagory entry with the respective
-auction category.
+The impact on the database from createAuction is documented in the master api
+documentation. The impact on the database from createSearchableAuction is
+documented in section \nameref{ref:csa}.
 
 If three calls to the search service fails, the call will be queued up to be
 attempted again with other failed calls at a regular interval.
@@ -271,6 +319,20 @@ attempted again with other failed calls at a regular interval.
 %   - Describe transactional events
 %   - Describe what happens on timeout from the search service.
 % - Any additional API calls that are needed to be added to master service
+
+\subsection{updateAuction}
+
+Update auction will work as it did before. Except, now, update auction will
+call updateSearchableAuction with the updated parameters it will receive.
+
+The impact on the database from updateAuction is documented in the master api
+documentation. The impact on the database from updateSearchableAuction is
+documented in section \nameref{ref:usa}.
+
+If three calls to the search service fails, the call will be queued up to be
+attempted again with other failed calls at a regular interval.
+
+
 
 
 \end{document}
