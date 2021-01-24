@@ -4,7 +4,7 @@
 \usepackage[USenglish]{babel}
 \usepackage{authblk}
 \usepackage{hyperref}
-
+\usepackage{graphicx}
 \usepackage{listings}
 \usepackage{xcolor}
 
@@ -43,9 +43,11 @@
 }
 
 \lstdefinelanguage{tableJson}{
-    basicstyle=\normalfont\ttfamily,
+    basicstyle=\small\ttfamily,
     showstringspaces=false,
     breaklines=true,
+    aboveskip=0,
+    belowskip=0,
     literate=
      *{0}{{{\color{numb}0}}}{1}
       {1}{{{\color{numb}1}}}{1}
@@ -74,8 +76,7 @@
 \setlength{\parindent}{0cm}
 
 
-\title{eBay Search Service}
-
+\title{eBay Search Service \\[1ex] \large Preliminary Draft}
 \author{Isabel Giang}
 \author{Maxwell Wenger}
 \affil{CSS490 Group Y4}
@@ -85,7 +86,7 @@
 
 \begin{document}
 \maketitle
-\setcounter{tocdepth}{2}
+\setcounter{tocdepth}{3}
 \tableofcontents
 
 % Problem:
@@ -157,176 +158,183 @@ instead of the eBay Master service.
  
 \section{eBay Search Service API Specification}
 
-\subsection{createSearchableAuction}
-\label{ref:csa}
-Creates an auction that is searchable by keywords and category. 
-
-
-\subsubsection{Input}
-\begin{lstlisting}[language=json,firstnumber=1]
-{
-    "auctionKey": <string>,
-    "title": <string>,
-    "closeDate": <string>,
-    "status": <string>,
-    "breadcrumb": <string>
-}
-\end{lstlisting}
-
-\subsubsection{Output}
+\subsection{API List}
 \begin{center}
-    \begin{tabular}{| p{5cm} | l |}
+    \begin{tabular}{| l | l |}
         \hline
-        \textbf{Scenario} & \textbf{Response} \\
+        \textbf{API Name} & \textbf{Description} \\
         \hline
-        Successfully created search entry. & 
-        \begin{lstlisting}[boxpos=t,language=tableJson,firstnumber=1]
-{
-    "success": true
-}
-        \end{lstlisting} \\ 
+            createSearchableAuction & Creates an auction. \\ 
         \hline
-            TODO: Make error states & Yeah! What he said! \\
+            updateSearchableAuction & Updates an auction. \\
+        \hline
+            findAuctions & Finds auctions based on the given keywords and/or category. \\
         \hline
     \end{tabular}
 \end{center}
 
+\subsection{Schema}
 
-\subsection{updateSearchableAuction}
-\label{ref:usa}
-New keywords will be generated if a new title is provided. The new keywords will be added to the database, and keywords
-associated with they auction key but were not again generated from the updated
-title will be removed from the database. The fields will be based on the
-auction key, therefore the auction key may not be updated. Any optional fields
-not included in the message to the service will not be changed.
+\includegraphics[scale=0.5]{images/Screen Shot 2021-01-22 at 11.34.49 PM.png}
+\pagebreak
+\subsection{API Descriptions}
 
-\subsubsection{input}
-\begin{lstlisting}[language=json,firstnumber=1]
+\subsubsection{createSearchableAuction}
+\label{ref:csa}
+Creates an auction that is searchable by keywords and category. 
+
+
+\paragraph{Input}
+
+\begin{itemize}
+    \item \textbf{title} - Title of the auction 
+    \item \textbf{closeDate} - Closing date of the auction (ISO-8601 timestamp)
+    \item \textbf{category} - Category breadcrumb
+\end{itemize}
+\begin{lstlisting}[language=json,numbers=none]
 {
-    "auctionkey": <string>,
-    "title": <string>, // optional
-    "closedate": <string>, // optional
-    "status": <string>, // optional
-    "breadcrumb": <string> // optional
+    "title": <string>,
+    "closeDate": <string>,
+    "category": <string>
 }
 \end{lstlisting}
 
-\subsubsection{output}
+\paragraph{Output}
 \begin{center}
-    \begin{tabular}{| p{5cm} | l |}
+    \begin{tabular}{| p{7cm} | l |}
         \hline
-        \textbf{scenario} & \textbf{response} \\
+        \textbf{Scenario} & \textbf{Response} \\
         \hline
-        successfully updated search entry. &
-        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
+        Successfully created an auction & 
+        \begin{lstlisting}[language=tableJson,firstnumber=1]
+{
+    "success": true,
+    "auction_key": <string>
+}
+
+        \end{lstlisting} \\ 
+        
+        % \hline
+         %    TODO: Make error states & Yeah! What he said! \\
+        \hline
+    \end{tabular}
+\end{center}
+
+\pagebreak
+\subsubsection{updateSearchableAuction}
+\label{ref:usa}
+Updates the auction that corresponds with the given auction key.
+
+
+\paragraph{Input}
+
+\begin{itemize}
+    \item \textbf{auctionKey} - Key that uniquely identifies the auction
+    \item \textbf{title} - Title of the auction 
+    \item \textbf{closeDate} - Closing date of the auction (ISO-8601 timestamp)
+    \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
+    \item \textbf{category} - Category breadcrumb
+\end{itemize}
+\begin{lstlisting}[language=json,numbers=none]
+{
+    "auction_key": <string>,
+    "title": <string>, // optional
+    "closeDate": <string>, // optional
+    "status": <string>, // optional
+    "category": <string> // optional
+}
+\end{lstlisting}
+
+\paragraph{Output}
+\begin{center}
+    \begin{tabular}{| p{7cm} | l |}
+        \hline
+        \textbf{Scenario} & \textbf{Response} \\
+        \hline
+        Successfully updated an auction &
+        \begin{lstlisting}[language=tablejson,firstnumber=1]
 {
     "success": true
 }
         \end{lstlisting} \\ 
         \hline
-        provided auction key does not exist in the search database. & 
-        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
+        The given auction key does not correspond to an auction. & 
+        \begin{lstlisting}[language=tablejson,firstnumber=1]
 {
     "success": false,
     "exception": "auctionkeynotfound"
 }
         \end{lstlisting} \\
-        \hline
-            todo: make error states & yeah! what he said! \\
+       %  \hline
+       %      todo: make error states & yeah! what he said! \\
         \hline
     \end{tabular}
 \end{center}
 
-\subsection{logging}
+\pagebreak
+\subsubsection{findAuctions}
+Finds biddable auctions based on the given category and/or keywords. 
 
-\begin{lstlisting}[boxpos=t,language=json,firstnumber=1]
-{
-    "start": <string>,
-    "duration": <string>,
-    "api": <string>,
-    "params":
-        {
-            "original": {
-                "auctionkey": <string>,
-                "title": <string>, // optional
-                "closedate": <string>, // optional
-                "status": <string>, // optional
-                "breadcrumb": <string> // optional 
-            }, 
-            "updated": {
-                "auctionkey": <string>,
-                "title": <string>, // optional
-                "closedate": <string>, // optional
-                "status": <string>, // optional
-                "breadcrumb": <string> // optional 
-            }
-        }
-}           
-\end{lstlisting}
+Entries will be ordered from
+oldest to newest, starting from the pageIndex if given. 
 
-\begin{itemize}
-    \item \textbf{start} The time the service first receives the call.
-    \item \textbf{duration} The amount of time it takes from when the service
-        receives the call to when the service responds.
-    \item \textbf{api} The name of the API that is called.
-    \item \textbf{params} The original and updated data that the API changed.
-        Optional data that was not changed is not included in either the
-        updated or original logs.
-\end{itemize}
-
-
-
-\subsection{findAuctions}
-findAuctions will return a number of results based on the user's query. The
-parameters search by ``anding'' the results together (e.g. if you ask for a
-keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
-electronics, red LG phones will be returned, but not red Nokia phones, or red
-LG refrigerators). To perform searches that ``or'' search terms, multiple
-searches must be made. lastAuctionKey and numResults are to be used for
-pagination. findAuctions will return numResults number of entries ordered from
-oldest to newest, starting from the lastAuctionKey. If no lastAuctionKey is
+If no pageIndex is
 provided, findAuctions will return numResults number of results starting from
 the first result.
 
-\subsubsection{input}
-\begin{lstlisting}[language=json,firstnumber=1]
+\paragraph{Input} 
+
+\begin{itemize}
+    \item \textbf{keywords} - Keywords that auction results will be matched to
+    \item \textbf{category} - Category breadcrumb
+    \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
+    \item \textbf{pageIndex} - Index where pagination begins. If given, results will be returned starting from this page.
+    \item \textbf{numResults} - Number of auctions returned per page
+\end{itemize}
+
+\begin{lstlisting}[language=json,numbers=none]
 {
     "keywords": [ <string>, ...], // optional
     "status": <string>, // optional
-    "breadcrumb": <string>, // optional
-    "lastAuctionKey": <string>, // optional
-    "numresults": <string>
+    "category": <string>, // optional
+    "pageIndex": <number>, // optional
+    "numResults": <number>
 }
 \end{lstlisting}
 
-\subsubsection{output}
+\paragraph{Output}
 \begin{center}
-    \begin{tabular}{| p{5cm} | l |}
+    \begin{tabular}{| p{7cm} | l |}
         \hline
         \textbf{scenario} & \textbf{response} \\
         \hline
         Successfully search with found results. &
-        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
+        \begin{lstlisting}[language=tablejson,firstnumber=1]
 {
     "success": true,
-    "results": [ auctionKey <string>, ...]
+    "results": [ 
+        auctionKey: <string>,
+        ...
+    ],
+    "pageIndex": <int>
 }
         \end{lstlisting} \\ 
         \hline
  \hline
         Successfully search with no results. &
-        \begin{lstlisting}[boxpos=t,language=tablejson,firstnumber=1]
+        \begin{lstlisting}[language=tablejson,firstnumber=1]
 {
     "success": true,
     "results": [ ]
 }
-        \end{lstlisting} \\ 
-        \hline
-            todo: make error states & yeah! what he said! \\
-        \hline
+         \end{lstlisting} \\ 
+        % \hline
+         %    todo: make error states & yeah! what he said! \\
+         \hline
     \end{tabular}
 \end{center}
 
+\pagebreak
 \section{eBay Search Service Intervals}
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
@@ -338,8 +346,20 @@ auction's keywords, and the auction category.
 Update searchable auction will update fields, keywords, and categories of an
 existing auction in the search table.
 
-\subsection{findAuctions}
+New keywords will be generated if a new title is provided. The new keywords will be added to the database, and keywords
+associated with they auction key but were not again generated from the updated
+title will be removed from the database. The fields will be based on the
+auction key, therefore the auction key may not be updated. Any optional fields
+not included in the message to the service will not be changed.
 
+\subsection{findAuctions}
+The parameters search by ``anding'' the results together (e.g. if you ask for a
+keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
+electronics, red LG phones will be returned, but not red Nokia phones, or red
+LG refrigerators). To perform searches that ``or'' search terms, multiple
+searches must be made.
+
+\pagebreak
 \section{Changes to eBay Master Service}
 
 \subsection{createAuction}
@@ -374,5 +394,46 @@ documented in section \nameref{ref:usa}.
 
 If three calls to the search service fails, the call will be queued up to be
 attempted again with other failed calls at a regular interval.
+
+\pagebreak
+\section{Logging}
+
+This section describes a suggested format for this service's application logs.
+
+\begin{lstlisting}[boxpos=t,language=json,firstnumber=1]
+{
+    "start": <string>,
+    "duration": <string>,
+    "api": <string>,
+    "params":
+        {
+            "original": {
+                "auctionkey": <string>,
+                "title": <string>, // optional
+                "closeDate": <string>, // optional
+                "status": <string>, // optional
+                "category": <string> // optional 
+            }, 
+            "updated": {
+                "auctionkey": <string>,
+                "title": <string>, // optional
+                "closeDate": <string>, // optional
+                "status": <string>, // optional
+                "category": <string> // optional 
+            }
+        }
+}           
+\end{lstlisting}
+
+\begin{itemize}
+    \item \textbf{start} The time the service first receives the call.
+    \item \textbf{duration} The amount of time it takes from when the service
+        receives the call to when the service responds.
+    \item \textbf{api} The name of the API that is called.
+    \item \textbf{params} The original and updated data that the API changed.
+        Optional data that was not changed is not included in either the
+        updated or original logs.
+\end{itemize}
+
 
 \end{document}
