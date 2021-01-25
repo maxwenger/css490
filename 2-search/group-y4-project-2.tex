@@ -149,12 +149,15 @@ instead of the eBay Master service.
 The eBay Search Service  will support searching in the following ways:
 
 \begin{itemize}
-\item Searching for all auctions
-\item Searching for auctions based on auction status (closed, open, pending, cancelled)
-\item Searching for auctions based on keywords
-\item Searching for auctions based on category
-\item Searching for auctions based on keywords and category
+    \item Searching for all auctions
+    \item Searching for auctions based on auction status (closed, open, pending, cancelled)
+    \item Searching for auctions based on keywords
+    \item Searching for auctions based on category
+    \item Searching for auctions based on keywords and category
 \end{itemize}
+
+Our search operation will only allow ``and'' operations between search terms.
+``Or'' operations must be done using multiple calls.
 
 \pagebreak
 % Clarify what kinds of searching we are doing such as:
@@ -174,9 +177,9 @@ The eBay Search Service  will support searching in the following ways:
         \hline
         \textbf{API Name} & \textbf{Description} \\
         \hline
-            createSearchableAuction & Creates an auction. \\ 
+            saveSearchableAuction & Updates or creates a searchable auction \\ 
         \hline
-            updateSearchableAuction & Updates an auction. \\
+            removeSearchableAuction & Removes an auction. \\
         \hline
             findAuctions & Finds auctions based on the given keywords and/or category. \\
         \hline
@@ -186,17 +189,16 @@ The eBay Search Service  will support searching in the following ways:
 \subsection{Schemas}
 
 \subsubsection{SearchDB}
-\includegraphics[scale=0.5]{images/Screen Shot 2021-01-22 at 11.34.49 PM.png}
-
+\includegraphics[scale=0.5]{images/search-schema.png}
 \subsubsection{MasterDB}
-\includegraphics[scale=0.5]{images/Screen Shot 2021-01-24 at 9.45.28 PM.png}
+\includegraphics[scale=0.5]{images/master-schema.png}
 \pagebreak
 \subsection{API Descriptions}
 
-\subsubsection{createSearchableAuction}
+\subsubsection{saveSearchableAuction}
 \label{ref:csa}
-Creates an auction that is searchable by keywords and category. 
-
+Updates an existing auction or creates one if no auction with the auction key
+exists.
 
 \paragraph{Input}
 
@@ -206,14 +208,18 @@ Creates an auction that is searchable by keywords and category.
     \item \textbf{closeDate} - Closing date of the auction (ISO-8601 timestamp)
     \item \textbf{category} - Category breadcrumb
     \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
+    \item \textbf{seqNum} - Sequence number of the auctions table. Each time
+        there is an update, it is incremented by one. Requests made with
+        smaller sequence numbers than the one in the database are ignored.
 \end{itemize}
 \begin{lstlisting}[language=json,numbers=none]
 {
     "auctionKey": <string>,
     "title": <string>,
     "closeDate": <string>,
-    "category": <string>,
-    "status": <string>
+    "categories": [ <string>, ...],
+    "status": <string>,
+    "seqNum": <int>
 }
 \end{lstlisting}
 
@@ -223,42 +229,32 @@ Creates an auction that is searchable by keywords and category.
         \hline
         \textbf{Scenario} & \textbf{Response} \\
         \hline
-        Successfully created an auction & 
+        Successfully saved an auction & 
         \begin{lstlisting}[language=tableJson,firstnumber=1]
 {
     "success": true,
+    "seqNum": <int> // current seq num in the database.
 }
 
         \end{lstlisting} \\ 
-        
-        % \hline
-         %    TODO: Make error states & Yeah! What he said! \\
         \hline
     \end{tabular}
 \end{center}
 
 \pagebreak
-\subsubsection{updateSearchableAuction}
+\subsubsection{removeSearchableAuction}
 \label{ref:usa}
-Updates the auction that corresponds with the given auction key.
-
+Removes an auction from the search database that corresponds with the given
+auction key.
 
 \paragraph{Input}
 
 \begin{itemize}
     \item \textbf{auctionKey} - Key that uniquely identifies the auction
-    \item \textbf{title} - Title of the auction 
-    \item \textbf{closeDate} - Closing date of the auction (ISO-8601 timestamp)
-    \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
-    \item \textbf{category} - Category breadcrumb
 \end{itemize}
 \begin{lstlisting}[language=json,numbers=none]
 {
-    "auction_key": <string>,
-    "title": <string>, // optional
-    "closeDate": <string>, // optional
-    "status": <string>, // optional
-    "category": <string> // optional
+    "auctionKey": <string>
 }
 \end{lstlisting}
 
@@ -268,20 +264,12 @@ Updates the auction that corresponds with the given auction key.
         \hline
         \textbf{Scenario} & \textbf{Response} \\
         \hline
-        Successfully updated an auction &
+        Successfully removed an auction &
         \begin{lstlisting}[language=tablejson,firstnumber=1]
 {
     "success": true
 }
         \end{lstlisting} \\ 
-        \hline
-        The given auction key does not correspond to an auction. & 
-        \begin{lstlisting}[language=tablejson,firstnumber=1]
-{
-    "success": false,
-    "exception": "auctionkeynotfound"
-}
-        \end{lstlisting} \\
        %  \hline
        %      todo: make error states & yeah! what he said! \\
         \hline
@@ -290,12 +278,15 @@ Updates the auction that corresponds with the given auction key.
 
 \pagebreak
 \subsubsection{findAuctions}
-Finds biddable auctions based on the given category and/or keywords. 
 
-Entries will be ordered from
-oldest to newest, starting from the pageIndex if given. 
-
-If no pageIndex is
+findAuctions will return a number of results based on the user's query. The
+parameters search by ``anding'' the results together (e.g. if you ask for a
+keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
+electronics, red LG phones will be returned, but not red Nokia phones, or red
+LG refrigerators). To perform searches that ``or'' search terms, multiple
+searches must be made. lastAuctionKey and numResults are to be used for
+pagination. findAuctions will return numResults number of entries ordered from
+oldest to newest, starting from the lastAuctionKey. If no lastAuctionKey is
 provided, findAuctions will return numResults number of results starting from
 the first result.
 
@@ -305,7 +296,9 @@ the first result.
     \item \textbf{keywords} - Keywords that auction results will be matched to
     \item \textbf{category} - Category breadcrumb
     \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
-    \item \textbf{pageIndex} - Index where pagination begins. If given, results will be returned starting from this page.
+    \item \textbf{lastAuctionKey} - The last auction key will be last auction
+        not included in the results that are numResults long. If given, results
+        will be returned starting from this page.
     \item \textbf{numResults} - Number of auctions returned per page
 \end{itemize}
 
@@ -313,8 +306,8 @@ the first result.
 {
     "keywords": [ <string>, ...], // optional
     "status": <string>, // optional
-    "category": <string>, // optional
-    "pageIndex": <number>, // optional
+    "categories": [<string>, ...], // optional
+    "lastAuctionKey": <number>, // optional
     "numResults": <number>
 }
 \end{lstlisting}
@@ -355,42 +348,58 @@ the first result.
 \section{eBay Search Service Internals}
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
-\subsection{createAuction}
-This creates an entry in the AuctionSearch database for the auction, all of the
-auction's keywords, and the auction category.
-
-\subsection{updateAuction}
+\subsection{saveSearchableAuction}
 Update searchable auction will update fields, keywords, and categories of an
 existing auction in the search table.
 
-New keywords will be generated if a new title is provided. The new keywords will be added to the database, and keywords
-associated with they auction key but were not again generated from the updated
-title will be removed from the database. The fields will be based on the
-auction key, therefore the auction key may not be updated. Any optional fields
-not included in the message to the service will not be changed.
+New keywords will be generated if a new title is provided. The new keywords
+will be added to the database, and keywords associated with they auction key
+but were not again generated from the updated title will be removed from the
+database. The fields will be based on the auction key, therefore the auction
+key may not be updated. Any optional fields not included in the message to the
+service will not be changed. To remove a title, an empty string must be
+provided (``''). If an empty string is provided, all keywords will be deleted
+as before, but no new ones will be generated.
+
+\subsection{removeSearchableAuction}
+Remove searchable auction does simply that. It will delete the keywords and
+category entries from each table matching the auction key that was requested to
+be deleted. In general, its not good practice to delete things out of the
+database, but in the case, its okay because this the search database is treated
+more like a cache than a datastore. The original data will still exist in the
+main database.
 
 \subsection{findAuctions}
-The parameters search by ``anding'' the results together (e.g. if you ask for a
-keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
-electronics, red LG phones will be returned, but not red Nokia phones, or red
-LG refrigerators). To perform searches that ``or'' search terms, multiple
-searches must be made.
+Find auctions builds a query based on the provided information. It generates
+this query as an ``and'' operation, so results passed back are only those that
+fit all the criteria you passed to findAuction. It handles pagination by having
+the user keep track of the last auction it saw, and request a certain number
+after that. So from our ordered query, we will pull numResults of results back,
+starting from one after the last auction key. If the last auction key was
+deleted/does not exist at the time of the call, it will return numResults
+number of results starting from the first value again. This helps get around
+the issue of missed auctions that were added during the search session.
 
 \pagebreak
 \section{Changes to eBay Master Service}
 
-\subsection{createAuction}
+\subsection{Master DB Schema Changes}
+The sequence number field has been added to the auction table to count and
+uniquely identify the order and number of changes made to the auction table.
 
+\subsection{createAuction}
 Creates an auction as it did before, although now the createAuction service is
 responsible for calling createSearchableAuction to create a search entry for
-the auction.
+the auction. Sequence number is set to zero.
+
+Create auction will then receive a response from the search service. If the
+response is anything other than success with the returned sequence number
+larger than or equal to the one the service sent, it will fail the update and
+alert the user.
 
 The impact on the database from createAuction is documented in the master api
 documentation. The impact on the database from createSearchableAuction is
 documented in section \nameref{ref:csa}.
-
-If three calls to the search service fails, the call will be queued up to be
-attempted again with other failed calls at a regular interval.
 
 % For any changes to the ebay master service, we need to provide:
 % - Description of schema changes (not a full schema drawing)
@@ -403,14 +412,22 @@ attempted again with other failed calls at a regular interval.
 \subsection{updateAuction}
 
 Update auction will work as it did before. Except, now, update auction will
-call updateSearchableAuction with the updated parameters it will receive.
+call saveSearchableAuction with the updated parameters it will receive. The
+sequence number is incremented by one.
+
+Update auction will then receive a response from the search service. If the
+response is anything other than success with the returned sequence number
+larger than or equal to the one the service sent, it will fail the update and
+alert the user.
 
 The impact on the database from updateAuction is documented in the master api
-documentation. The impact on the database from updateSearchableAuction is
-documented in section \nameref{ref:usa}.
+documentation. The impact on the database from saveSearchableAuction is
+documented in section \nameref{ref:csa}.
 
-If three calls to the search service fails, the call will be queued up to be
-attempted again with other failed calls at a regular interval.
+\subsection{findOpenAuctions}
+This service in the master DB now simply calls the findAuctions service from
+the search service, passing through the keywords and category it was passed,
+but only looking for auctions with a status of open.
 
 \pagebreak
 \section{Logging}
@@ -426,17 +443,19 @@ This section describes a suggested format for this service's application logs.
         {
             "original": {
                 "auctionkey": <string>,
-                "title": <string>, // optional
-                "closeDate": <string>, // optional
-                "status": <string>, // optional
-                "category": <string> // optional 
+                "title": <string>,
+                "closeDate": <string>,
+                "status": <string>, 
+                "category": [<string>, ...],
+                "seqNum": <int> 
             }, 
             "updated": {
                 "auctionkey": <string>,
-                "title": <string>, // optional
-                "closeDate": <string>, // optional
-                "status": <string>, // optional
-                "category": <string> // optional 
+                "title": <string>,
+                "closeDate": <string>,
+                "status": <string>,
+                "category": [<string>, ...],
+                "seqNum": <int> 
             }
         }
 }           
