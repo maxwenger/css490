@@ -138,13 +138,22 @@ will increase at an exponential rate.
 \subsection{Next Steps}
 To solve this more permanently, we want to create a separate search service
 that will handle searching for auctions by keyword and/or category. 
-We will call this new service 'AuctionSearch'. 
+We will call this new service the eBay Search Service.
 
 \vspace{\baselineskip}
 This search service will have its own database that can only be changed
 by external users via its API. Whenever a new FindAuction API request is made, 
 this service will perform the required business logic and databases accesses 
 instead of the eBay Master service.
+
+The eBay Search Service  will support searching in the following ways:
+
+\begin{itemize}
+\item Searching for all auctions
+\item Searching for auctions based on auction status (closed, open, pending, cancelled)
+\item Searching for auctions based on keywords
+\item Searching for auctions based on category
+\end{itemize}
 
 \pagebreak
 % Clarify what kinds of searching we are doing such as:
