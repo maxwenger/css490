@@ -187,15 +187,19 @@ Creates an auction that is searchable by keywords and category.
 \paragraph{Input}
 
 \begin{itemize}
+    \item \textbf{auctionKey} - Public key that uniquely identifies an auction from the eBay Master Service.
     \item \textbf{title} - Title of the auction 
     \item \textbf{closeDate} - Closing date of the auction (ISO-8601 timestamp)
     \item \textbf{category} - Category breadcrumb
+    \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
 \end{itemize}
 \begin{lstlisting}[language=json,numbers=none]
 {
+    "auctionKey": <string>,
     "title": <string>,
     "closeDate": <string>,
-    "category": <string>
+    "category": <string>,
+    "status": <string>
 }
 \end{lstlisting}
 
@@ -209,7 +213,6 @@ Creates an auction that is searchable by keywords and category.
         \begin{lstlisting}[language=tableJson,firstnumber=1]
 {
     "success": true,
-    "auction_key": <string>
 }
 
         \end{lstlisting} \\ 
@@ -335,7 +338,7 @@ the first result.
 \end{center}
 
 \pagebreak
-\section{eBay Search Service Intervals}
+\section{eBay Search Service Internals}
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
 \subsection{createAuction}
