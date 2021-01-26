@@ -1,4 +1,3 @@
-
 \documentclass[12pt,a4paper]{article}
 \usepackage{fullpage}
 \usepackage[USenglish]{babel}
@@ -7,6 +6,9 @@
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tabularx}
+\usepackage{ragged2e}
 
 \colorlet{punct}{red!60!black}
 \definecolor{background}{HTML}{EEEEEE}
@@ -106,7 +108,7 @@
 
 This document is intended to explain why the eBay Search Service is being created
 and a suggested approach to implement the eBay Search Service for the purposes
-of being audited for technical feasibility by an engineering manager for approval.
+of being audited for technical feasibility by an engineer.
 
 \vspace{\baselineskip}
 
@@ -151,9 +153,6 @@ temporarily, but this will not be enough as the company grows. The number of
 records in the Auction table, and subsequently, the number of active auctions
 will increase at an exponential rate.
 
-\vspace{\baselineskip}
-
-Our long-term business requirement is to.
 
 
 \pagebreak
@@ -179,7 +178,7 @@ instead of the eBay Master service.
 \vspace{\baselineskip}
 
 
-The eBay Search Service  will support searching in the following ways:
+At a minimum, the eBay Search Service should support searching in the following ways:
 
 \begin{itemize}
     \item Searching for all auctions
@@ -219,8 +218,6 @@ and the results of searching for auctions that have ``yellow'' in their titles.
         \hline
             saveSearchableAuction & Updates or creates a searchable auction \\ 
         \hline
-            removeSearchableAuction & Removes an auction. \\
-        \hline
             findAuctions & Finds auctions based on the given keywords and/or category. \\
         \hline
     \end{tabular}
@@ -237,20 +234,19 @@ and the results of searching for auctions that have ``yellow'' in their titles.
 
 \subsubsection{saveSearchableAuction}
 \label{ref:csa}
-Updates an existing auction or creates one if no auction with the auction key
-exists.
+Creates an auction if no auction that corresponds with the given auction key exists.
+Otherwise, updates the auction that corresponds with the given auction key. 
 
 \paragraph{Input}
 
 \begin{itemize}
     \item \textbf{auctionKey} - Public key that uniquely identifies an auction from the eBay Master Service.
     \item \textbf{title} - Title of the auction 
-    \item \textbf{closeDate} - Closing date of the auction (ISO-8601 timestamp)
-    \item \textbf{category} - Category breadcrumb
+    \item \textbf{closeDate} - Closing date of the auction 
+    \item \textbf{categories} -  List of category breadcrumbs
     \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
-    \item \textbf{seqNum} - Sequence number of the auctions table. Each time
-        there is an update, it is incremented by one. Requests made with
-        smaller sequence numbers than the one in the database are ignored.
+    \item \textbf{seqNum} - Sequence number of the auction record. Each time an update is performed for this record,
+        it is incremented by one. Requests made with \texttt{seqNum} $<$ \texttt{UpdateSeqNum} for this record are ignored.
 \end{itemize}
 \begin{lstlisting}[language=json,numbers=none]
 {
@@ -265,16 +261,33 @@ exists.
 
 \paragraph{Output}
 \begin{center}
-    \begin{tabular}{| p{5cm} | l |}
+    \begin{tabular}{| p{6cm} | l |}
         \hline
         \textbf{Scenario} & \textbf{Response} \\
         \hline
-        Successfully saved an auction & 
+        Successfully stored an auction & 
         \begin{lstlisting}[language=tableJson,firstnumber=1]
 {
     "success": true,
-    "seqNum": <int> // current seq num in
-                    // the database.
+    "seqNum": <int>           
+}
+
+        \end{lstlisting} \\ 
+        \hline
+        Auction key does not match with an existing auction & 
+        \begin{lstlisting}[language=tableJson,firstnumber=1]
+{
+    "success": false,
+    "error": "InvalidAuction"
+}
+
+        \end{lstlisting} \\ 
+        \hline
+        \texttt{SeqNum} $<$ \texttt{UpdateSeqNum} for this auction. & 
+        \begin{lstlisting}[language=tableJson,firstnumber=1]
+{
+    "success": false,
+    "error": "OutOfOrder"
 }
 
         \end{lstlisting} \\ 
@@ -356,7 +369,13 @@ the first result.
 \section{eBay Search Service Internals}
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
+
+When the eBay Search Service is initially created, the auctions from 
+the eBay Master Service will need to have its auction records from the MasterDB
+be loaded into the SearchDB. This can be performed using calls of \texttt{saveSearchableAuction}.
+
 \subsection{saveSearchableAuction}
+
 saveSearchableAuction will update fields, keywords, and categories of an
 existing auction in the search table.
 
@@ -368,14 +387,6 @@ key may not be updated. Any optional fields not included in the message to the
 service will not be changed. To remove a title, an empty string must be
 provided (``''). If an empty string is provided, all keywords will be deleted
 as before, but no new ones will be generated.
-
-\subsection{removeSearchableAuction}
-Remove searchable auction does simply that. It will delete the keywords and
-category entries from each table matching the auction key that was requested to
-be deleted. In general, its not good practice to delete things out of the
-database, but in the case, its okay because this the search database is treated
-more like a cache than a datastore. The original data will still exist in the
-main database.
 
 \subsection{findAuctions}
 Find auctions builds a query based on the provided information. It generates
@@ -391,36 +402,85 @@ the issue of missed auctions that were added during the search session.
 \pagebreak
 \section{Changes to eBay Master Service}
 
+
 \subsection{MasterDB Schema Changes}
-The \texttt{SeqNum} field has been added to the \texttt{Auction} table to count and
-uniquely identify the order of new transactions and the number of new auctions 
-that have been added to the table. 
 
-The \texttt{NeedUpdate} field has been added to the \texttt{Auction} table to 
-determine 
+\subsubsection{NeedUpdate Field} 
+\label{sec:needupdate}
 
+
+The \texttt{NeedUpdate} field has been added to the \texttt{Auction} record to handle 
+dropped update messages from the eBay Search Service. In the case where there's no reply 
+from the eBay Search Service, there must be a way to guarantee that we will try again 
+until the eBay Search Service has also been updated.
+
+\begin{center}
+\includegraphics[scale=0.5]{images/no-update.png}
+\end{center}
+
+
+
+\vspace{\baselineskip}
+If this field is \texttt{true}, we will say this means the eBay Master Service is 
+in the process of updating this record, and has yet to receive a message from the eBay Search Service 
+indicating it has been updated on the SearchDB. 
+
+\vspace{\baselineskip}
+
+We suggest created some kind of mechanism, such a CRON job, to run periodically 
+to check if there are any auctions with this flag set to \texttt{true}. 
+If they are \texttt{true}, send a message to the eBay Search Service asking again 
+to update this record on the SearchDB table.
+
+
+
+\subsubsection{SeqNum Field}
+The \texttt{SeqNum} field has been added to the \texttt{Auction} record to help
+track the order of update messages, so we know which update message each record
+is waiting for. 
+
+\vspace{\baselineskip}
+If a record has \texttt{SeqNum} equal to 2, then we know it is waiting for the 
+update message from the eBay Search Service with sequence number 2.
+
+
+
+
+\pagebreak
 \subsection{API Definition Changes}
 
 \subsubsection{createAuction}
-After creating a new entry in the MasterDB's Auction table as part of a transaction, 
-the \texttt{createAuction} API must call the eBay Search Service's 
-\texttt{saveSearchableAuction} API to trigger a transaction to create 
-a new auction in the SearchDB, sending a \texttt{SeqNum}.
-\texttt{SeqNum} begins at 0, and increments by 1 each time an auction is added.
 
+The \texttt{createAuction} API will need to adopt the responsibility of sending messages to the eBay Search Service's
+\texttt{saveSearchableAuction} API to populate the SearchDB as new auctions are created. 
 \vspace{\baselineskip}
-The eBay Master Service will then receive a response from the eBay Search Service. 
-If the response does not return \texttt{"success":"true"}, with a \texttt{seqNum}
-larger than or equal to the \texttt{seqNum} originally sent by the ebay Master Service, 
-the eBay Master Service will fail the transaction, roll back the creation of the new Auction record, 
-and send an response back to the user of the \texttt{createAuction} API 
-indicating an error has occurred.
 
+For each new auction, \texttt{createAuction} will:
 
-\vspace{\baselineskip}
-Aside from updating \texttt{seqNum} each time a new auction is created, the 
-impact on the MasterDB from performing \texttt{createAuction} is the same as 
-documented in the eBay Master Service API specification.
+\begin{enumerate}
+    \item begin a new transaction
+    \item create a record in the MasterDB's Auction table
+    \item set \texttt{SeqNum} to 0
+    \item set \texttt{NeedUpdate} to \texttt{true}
+    \item call eBay Search Service's \texttt{saveSearchableAuction} API to trigger a transaction to create 
+    a new auction in the SearchDB.
+    \item commit the transaction
+\end{enumerate}
+
+The eBay Master Service will then wait to receive a response from the eBay Search Service. 
+If a successful response with \texttt{"success":"true"} is returned, 
+\texttt{createAuction} should:
+
+\begin{enumerate}
+    \item begin a new transaction
+    \item set \texttt{NeedUpdate} to \texttt{false}
+    \item increment \texttt{SeqNum} by 1
+    \item commit the transaction
+\end{enumerate}
+
+If no response is returned after an appropriate timeout period, \texttt{createAuction} 
+should return a successful response to the \texttt{createAuction user} and do nothing.
+
 
 % For any changes to the ebay master service, we need to provide:
 % - Description of schema changes (not a full schema drawing)
@@ -430,30 +490,61 @@ documented in the eBay Master Service API specification.
 %   - Describe what happens on timeout from the search service.
 % - Any additional API calls that are needed to be added to master service
 
+\pagebreak
 \subsubsection{updateAuction}
 
-After successfully updating an auction in the MasterDB Auction table as part of a transaction, 
- \texttt{updateAuction} will call \texttt{saveSearchableAuction} and increment \texttt{SeqNum} 
- in the MasterDB Auction table by one.
+The \texttt{updateAuction} API will need to adopt the responsibility of sending messages to the eBay Search Service's
+\texttt{saveSearchableAuction} API whenever an auction is updated with new information.
 
- \vspace{\baselineskip} 
+For each new auction update, \texttt{updateAuction} will:
 
-The eBay Master Service will then receive a response from the eBay Search Service.
-If the response does not return \texttt{"success":"true"}, with a \texttt{seqNum}
-larger than or equal to the \texttt{seqNum} originally sent by the ebay Master Service, 
-the eBay Master Service will fail the transaction, roll back the creation of the new Auction record, 
-and send an response back to the user of the \texttt{updateAuction} API 
-indicating an error has occurred.
+\begin{enumerate}
+    \item begin a new transaction
+    \item update a record in the MasterDB's Auction table
+    \item set \texttt{NeedUpdate} to \texttt{true}
+    \item call eBay Search Service's \texttt{saveSearchableAuction} API to trigger a transaction to update an auction in the SearchDB
+    \item commit the transaction
+\end{enumerate}
 
-\vspace{\baselineskip} 
-Aside from updating \texttt{SeqNum} each time an auction is updated, the 
-impact on the MasterDB from performing \texttt{createAuction} is the same as 
-documented in the eBay Master Service API specification.
 
+The eBay Master Service will then wait to receive a response from the eBay Search Service. 
+If a successful response with \texttt{"success":"true"} is returned, 
+ \texttt{updateAuction} should:
+ 
+ \begin{enumerate}
+     \item begin a new transaction
+     \item set \texttt{NeedUpdate} to \texttt{false}
+     \item increment \texttt{SeqNum} by 1
+     \item commit the transaction
+ \end{enumerate}
+
+
+ If no response is returned after an appropriate timeout period, \texttt{updateAuction} 
+ should return a successful response to the \texttt{updateAuction user} and do nothing.
+
+ 
 \subsubsection{findOpenAuctions}
-This API from the eBay Master Service calls the eBay Search Service's \texttt{findAuctions}
-If given, the keywords and category list passed to the eBay Master Service are also passed
-to \texttt{findAuctions}. \texttt{AuctionStatus} is indexed.
+This API from the eBay Master Service calls the eBay Search Service's \texttt{findAuctions}.
+The parameters passed to the eBay Search Service's \texttt{findAuctions} API will be the same
+as the parameters passed to the eBay Master Service.
+\vspace{\baselineskip}
+
+After waiting for a response, the eBay Master Service should receive a list of auction keys 
+in the form of JSON.  To return the same information that is expected from the API specification 
+for \texttt{findOpenAuctions}, for each auction key, the eBay Master Service will need to perform a 
+\texttt{JOIN} with the MasterDB Seller table, filtering on \texttt{AuctionKey} to get \texttt{Title}, 
+\texttt{Description}, \texttt{OpenDate}, \texttt{ClosingDate}, and \texttt{High Bid}.
+
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+
+NOTE: For \texttt{updateAuction} and \texttt{createAuction}, assume that sending update messages after timeouts will be handled by some mechanism that
+searches for records where \texttt{NeedUpdate} is \texttt{true}.
+\emph{See \hyperref[sec:needupdate]{NeedUpdate Field} for more information.}
 
 \pagebreak
 \section{Logging}
