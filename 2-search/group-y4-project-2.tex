@@ -76,7 +76,7 @@
 \setlength{\parindent}{0cm}
 
 
-\title{eBay Search Service \\[1ex] \large Preliminary Draft}
+\title{eBay Search Service}
 \author{Isabel Giang}
 \author{Maxwell Wenger}
 \affil{CSS490 Group Y4}
@@ -103,6 +103,22 @@
 
 \pagebreak
 \section{Overview}
+
+This document is intended to explain why the eBay Search Service is being created
+and a suggested approach to implement the eBay Search Service for the purposes
+of being audited for technical feasibility by an engineering manager for approval.
+
+\vspace{\baselineskip}
+
+This document will explain the following:
+
+\begin{itemize}
+    \item the API designs for each eBay Search Service API
+    \item details needed for implementation and to assess if this solution is technically viable
+    \item changes that must be made to the eBay Master Service to use the eBay Search Service
+\end{itemize} 
+
+
 \subsection{Problem Statement}
 In the last few months, eBay users have reported increasingly slow response
 times from eBay's website when searching for auctions. Application log analysis
@@ -135,25 +151,33 @@ temporarily, but this will not be enough as the company grows. The number of
 records in the Auction table, and subsequently, the number of active auctions
 will increase at an exponential rate.
 
+\vspace{\baselineskip}
+
+Our long-term business requirement is to.
+
+
+\pagebreak
 \subsection{Next Steps}
 To solve this more permanently, we want to create a separate search service
 that will handle searching for auctions by keyword and/or category. 
 We will call this new service the eBay Search Service. 
 
-\vspace{\baselineskip}
-This document will explain the following:
-
-\begin{itemize}
-    \item the API designs for each eBay Search Service API
-    \item details needed for implementation and to assess if this solution is technically viable
-    \item changes that must be made to the eBay Master Service to use the eBay Search Service
-\end{itemize} 
-
-\vspace{\baselineskip}
+\vspace{\baselineskip} 
 The search service will have its own database that can only be changed
-by external users via its API. Whenever a new FindAuction API request is made, 
+by external users via its API.
+We will \emph{delegate} the eBay Master Service's searching to this new Search Service, 
+which will allow us to only keep information relevant to searching in the Search Service's database. 
+
+\begin{center}
+    \includegraphics[scale=0.75]{images/new-service.png}
+\end{center}
+
+Whenever a new FindAuction API request is made, 
 this service will perform the required business logic and databases accesses 
 instead of the eBay Master service.
+
+\vspace{\baselineskip}
+
 
 The eBay Search Service  will support searching in the following ways:
 
@@ -372,8 +396,10 @@ The \texttt{SeqNum} field has been added to the \texttt{Auction} table to count 
 uniquely identify the order of new transactions and the number of new auctions 
 that have been added to the table. 
 
+The \texttt{NeedUpdate} field has been added to the \texttt{Auction} table to 
+determine 
 
-\subsection{eBay Master API Definition Changes}
+\subsection{API Definition Changes}
 
 \subsubsection{createAuction}
 After creating a new entry in the MasterDB's Auction table as part of a transaction, 
@@ -392,7 +418,7 @@ indicating an error has occurred.
 
 
 \vspace{\baselineskip}
-Aside from updating SeqNum each time a new auction is created, the 
+Aside from updating \texttt{seqNum} each time a new auction is created, the 
 impact on the MasterDB from performing \texttt{createAuction} is the same as 
 documented in the eBay Master Service API specification.
 
@@ -420,19 +446,20 @@ and send an response back to the user of the \texttt{updateAuction} API
 indicating an error has occurred.
 
 \vspace{\baselineskip} 
-Aside from updating SeqNum each time an auction is updated, the 
+Aside from updating \texttt{SeqNum} each time an auction is updated, the 
 impact on the MasterDB from performing \texttt{createAuction} is the same as 
 documented in the eBay Master Service API specification.
 
 \subsubsection{findOpenAuctions}
-This service in the master DB now simply calls the findAuctions service from
-the search service, passing through the keywords and category it was passed,
-but only looking for auctions with a status of open.
+This API from the eBay Master Service calls the eBay Search Service's \texttt{findAuctions}
+If given, the keywords and category list passed to the eBay Master Service are also passed
+to \texttt{findAuctions}. \texttt{AuctionStatus} is indexed.
 
 \pagebreak
 \section{Logging}
 
 This section describes a suggested format for this service's application logs.
+
 
 \begin{lstlisting}[boxpos=t,language=json,firstnumber=1]
 {
