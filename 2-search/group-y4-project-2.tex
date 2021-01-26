@@ -1,4 +1,3 @@
-
 \documentclass[12pt,a4paper]{article}
 \usepackage{fullpage}
 \usepackage[USenglish]{babel}
@@ -7,6 +6,9 @@
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tabularx}
+\usepackage{ragged2e}
 
 \colorlet{punct}{red!60!black}
 \definecolor{background}{HTML}{EEEEEE}
@@ -76,7 +78,7 @@
 \setlength{\parindent}{0cm}
 
 
-\title{eBay Search Service \\[1ex] \large Preliminary Draft}
+\title{eBay Search Service}
 \author{Isabel Giang}
 \author{Maxwell Wenger}
 \affil{CSS490 Group Y4}
@@ -103,6 +105,22 @@
 
 \pagebreak
 \section{Overview}
+
+This document is intended to explain why the eBay Search Service is being created
+and a suggested approach to implement the eBay Search Service for the purposes
+of being audited for technical feasibility by an engineer.
+
+\vspace{\baselineskip}
+
+This document will explain the following:
+
+\begin{itemize}
+    \item the API designs for each eBay Search Service API
+    \item details needed for implementation and to assess if this solution is technically viable
+    \item changes that must be made to the eBay Master Service to use the eBay Search Service
+\end{itemize} 
+
+
 \subsection{Problem Statement}
 In the last few months, eBay users have reported increasingly slow response
 times from eBay's website when searching for auctions. Application log analysis
@@ -135,18 +153,32 @@ temporarily, but this will not be enough as the company grows. The number of
 records in the Auction table, and subsequently, the number of active auctions
 will increase at an exponential rate.
 
+
+
+\pagebreak
 \subsection{Next Steps}
 To solve this more permanently, we want to create a separate search service
 that will handle searching for auctions by keyword and/or category. 
-We will call this new service the eBay Search Service.
+We will call this new service the eBay Search Service. 
 
-\vspace{\baselineskip}
-This search service will have its own database that can only be changed
-by external users via its API. Whenever a new FindAuction API request is made, 
+\vspace{\baselineskip} 
+The search service will have its own database that can only be changed
+by external users via its API.
+We will \emph{delegate} the eBay Master Service's searching to this new Search Service, 
+which will allow us to only keep information relevant to searching in the Search Service's database. 
+
+\begin{center}
+    \includegraphics[scale=0.75]{images/new-service.png}
+\end{center}
+
+Whenever a new FindAuction API request is made, 
 this service will perform the required business logic and databases accesses 
 instead of the eBay Master service.
 
-The eBay Search Service  will support searching in the following ways:
+\vspace{\baselineskip}
+
+
+At a minimum, the eBay Search Service should support searching in the following ways:
 
 \begin{itemize}
     \item Searching for all auctions
@@ -156,8 +188,15 @@ The eBay Search Service  will support searching in the following ways:
     \item Searching for auctions based on keywords and category
 \end{itemize}
 
-Our search operation will only allow ``and'' operations between search terms.
-``Or'' operations must be done using multiple calls.
+Each search operation will only allow ``AND'' operations between search terms. 
+For example, searching for auctions that have``red'' AND ``yellow'' in their titles.
+\vspace{\baselineskip}
+
+``OR'' operations must be done making multiple API calls and combining the results.
+For example, to get the results for auctions that have ``red'' OR ``yellow'' in their titles, 
+you must combine the results of searching for auctions that have ``red" in their titles,
+and the results of searching for auctions that have ``yellow'' in their titles.
+
 
 \pagebreak
 % Clarify what kinds of searching we are doing such as:
@@ -179,8 +218,6 @@ Our search operation will only allow ``and'' operations between search terms.
         \hline
             saveSearchableAuction & Updates or creates a searchable auction \\ 
         \hline
-            removeSearchableAuction & Removes an auction. \\
-        \hline
             findAuctions & Finds auctions based on the given keywords and/or category. \\
         \hline
     \end{tabular}
@@ -191,50 +228,72 @@ Our search operation will only allow ``and'' operations between search terms.
 \subsubsection{SearchDB}
 \includegraphics[scale=0.5]{images/search-schema.png}
 \subsubsection{MasterDB}
-\includegraphics[scale=0.5]{images/master-schema.png}
+\includegraphics[scale=0.35]{images/master-schema.png}
 \pagebreak
 \subsection{API Descriptions}
 
 \subsubsection{saveSearchableAuction}
 \label{ref:csa}
-Updates an existing auction or creates one if no auction with the auction key
-exists.
+Creates an auction if no auction that corresponds with the given auction key exists.
+Otherwise, updates the auction that corresponds with the given auction key. 
 
+
+\vspace{\baselineskip}
+
+To create or update multiple auctions, \texttt{saveSearchableAuction} must be called 
+once for each auction to be created or updated.
 \paragraph{Input}
 
 \begin{itemize}
     \item \textbf{auctionKey} - Public key that uniquely identifies an auction from the eBay Master Service.
     \item \textbf{title} - Title of the auction 
-    \item \textbf{closeDate} - Closing date of the auction (ISO-8601 timestamp)
-    \item \textbf{category} - Category breadcrumb
+    \item \textbf{closeDate} - Closing date of the auction 
+    \item \textbf{categories} -  List of categories, in category breadcrumb format
     \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
-    \item \textbf{seqNum} - Sequence number of the auctions table. Each time
-        there is an update, it is incremented by one. Requests made with
-        smaller sequence numbers than the one in the database are ignored.
+    \item \textbf{seqNum} - Sequence number of the auction record. Each time an update is performed for this record,
+        it is incremented by one. Requests made with \texttt{seqNum} $<$ \texttt{UpdateSeqNum} for this record are ignored.
 \end{itemize}
 \begin{lstlisting}[language=json,numbers=none]
 {
-    "auctionKey": <string>,
-    "title": <string>,
+    "auctionKey": <string>, // required
+    "title": <string>,      // required
     "closeDate": <string>,
     "categories": [ <string>, ...],
     "status": <string>,
-    "seqNum": <int>
+    "seqNum": <int>         // required
 }
 \end{lstlisting}
 
+\pagebreak
 \paragraph{Output}
 \begin{center}
-    \begin{tabular}{| p{5cm} | l |}
+    \begin{tabular}{| p{6cm} | l |}
         \hline
         \textbf{Scenario} & \textbf{Response} \\
         \hline
-        Successfully saved an auction & 
+        Successfully stored an auction & 
         \begin{lstlisting}[language=tableJson,firstnumber=1]
 {
     "success": true,
-    "seqNum": <int> // current seq num in
-                    // the database.
+    "seqNum": <int>           
+}
+
+        \end{lstlisting} \\ 
+        \hline
+        Auction key does not match with an existing auction & 
+        \begin{lstlisting}[language=tableJson,firstnumber=1]
+{
+    "success": false,
+    "error": "InvalidAuction"
+}
+
+        \end{lstlisting} \\ 
+        \hline
+        \texttt{SeqNum} $<$ \texttt{UpdateSeqNum} for this auction. & 
+        \begin{lstlisting}[language=tableJson,firstnumber=1]
+{
+    "success": false,
+    "error": "OutOfOrder"
 }
 
         \end{lstlisting} \\ 
@@ -242,77 +301,59 @@ exists.
     \end{tabular}
 \end{center}
 
-\pagebreak
-\subsubsection{removeSearchableAuction}
-\label{ref:usa}
-Removes an auction from the search database that corresponds with the given
-auction key.
 
-\paragraph{Input}
 
-\begin{itemize}
-    \item \textbf{auctionKey} - Key that uniquely identifies the auction
-\end{itemize}
-\begin{lstlisting}[language=json,numbers=none]
-{
-    "auctionKey": <string>
-}
-\end{lstlisting}
 
-\paragraph{Output}
-\begin{center}
-    \begin{tabular}{| p{7cm} | l |}
-        \hline
-        \textbf{Scenario} & \textbf{Response} \\
-        \hline
-        Successfully removed an auction &
-        \begin{lstlisting}[language=tablejson,firstnumber=1]
-{
-    "success": true
-}
-        \end{lstlisting} \\ 
-       %  \hline
-       %      todo: make error states & yeah! what he said! \\
-        \hline
-    \end{tabular}
-\end{center}
 
 \pagebreak
 \subsubsection{findAuctions}
 
-findAuctions will return a number of results based on the user's query. The
-parameters search by ``anding'' the results together (e.g. if you ask for a
-keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
-electronics, red LG phones will be returned, but not red Nokia phones, or red
-LG refrigerators). To perform searches that ``or'' search terms, multiple
-searches must be made. lastAuctionKey and numResults are to be used for
-pagination. findAuctions will return numResults number of entries ordered from
-oldest to newest, starting from the lastAuctionKey. If no lastAuctionKey is
-provided, findAuctions will return numResults number of results starting from
-the first result.
+findAuctions retrieves a list of auctions filtered based on the parameters passed.
+This is intended to support searches by category, keywords, date, and auction status.
 
+\vspace{\baselineskip}
+
+At a minimum, either a keyword list or a category must be passed as parameters.
+
+If a page index that corresponds with a page that doesn't exist, 
+the query is considered successful, but no results are returned.
+
+\vspace{\baselineskip}
+Each search operation will only allow ``AND'' operations between search terms. 
+For example, searching for auctions that have``red'' AND ``yellow'' in their titles.
+\vspace{\baselineskip}
+
+``OR'' operations must be done making multiple API calls and combining the results.
+For example, to get the results for auctions that have ``red'' OR ``yellow'' in their titles, 
+you must combine the results of searching for auctions that have ``red" in their titles,
+and the results of searching for auctions that have ``yellow'' in their titles.
 \paragraph{Input} 
 
 \begin{itemize}
     \item \textbf{keywords} - Keywords that auction results will be matched to
-    \item \textbf{category} - Category breadcrumb
+    \item \textbf{category} - Category, in category breadcrumb format
     \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
-    \item \textbf{lastAuctionKey} - The last auction key will be last auction
-        not included in the results that are numResults long. If given, results
-        will be returned starting from this page.
-    \item \textbf{numResults} - Number of auctions returned per page
+    \item \textbf{closeDate} - Closing date of the auction
+    \item \textbf{pageIndex} - Page index that is returned by every API call to \texttt{findAuctions}. 
+                                Instructs the API where to begin returning auctions from. 
+                                If this parameter is not provided, auctions will begin from the earliest auction result
+                                that match the given parameters.
+    \item \textbf{pageSize} - Number of auctions returned per page
 \end{itemize}
 
 \begin{lstlisting}[language=json,numbers=none]
 {
-    "keywords": [ <string>, ...], // optional
-    "status": <string>, // optional
-    "categories": [<string>, ...], // optional
-    "lastAuctionKey": <number>, // optional
-    "numResults": <number>
+    "keywords": [ <string>, ...], 
+    "status": <string>, 
+    "closeDate": <string>,
+    "categories": [<string>, ...], 
+    "pageIndex": <number>, 
+    "pageSize": <number>         // required
 }
 \end{lstlisting}
 
+
+\pagebreak
 \paragraph{Output}
 \begin{center}
     \begin{tabular}{| p{7cm} | l |}
@@ -331,17 +372,27 @@ the first result.
 }
         \end{lstlisting} \\ 
         \hline
- \hline
         Successfully search with no results. &
         \begin{lstlisting}[language=tablejson,firstnumber=1]
 {
     "success": true,
     "results": [ ]
+    "pageIndex": -1
 }
          \end{lstlisting} \\ 
         % \hline
          %    todo: make error states & yeah! what he said! \\
          \hline
+         Missing category AND keyword list &
+         \begin{lstlisting}[language=tablejson,firstnumber=1]
+{
+     "success": false,
+     "error": "NoCategoryOrKeywords"
+}
+          \end{lstlisting} \\ 
+         % \hline
+          %    todo: make error states & yeah! what he said! \\
+          \hline
     \end{tabular}
 \end{center}
 
@@ -349,58 +400,190 @@ the first result.
 \section{eBay Search Service Internals}
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
+
+This section describes the suggested internal processes to successfully implement each API with a focus on changes in the database layer of the eBay Search Service.
+
+
+\subsection{Initial Creation}
+
+When the eBay Search Service is initially created, the auctions from 
+the eBay Master Service will need to have its auction records from the MasterDB
+be loaded into the SearchDB. This can be performed using calls of \texttt{saveSearchableAuction}.
+
 \subsection{saveSearchableAuction}
-Update searchable auction will update fields, keywords, and categories of an
-existing auction in the search table.
 
-New keywords will be generated if a new title is provided. The new keywords
-will be added to the database, and keywords associated with they auction key
-but were not again generated from the updated title will be removed from the
-database. The fields will be based on the auction key, therefore the auction
-key may not be updated. Any optional fields not included in the message to the
-service will not be changed. To remove a title, an empty string must be
-provided (``''). If an empty string is provided, all keywords will be deleted
-as before, but no new ones will be generated.
+Each new record and record update performed through this API is done as a transaction. 
+If no auction key is given, a record cannot be created, and the transaction is immediately cancelled.
 
-\subsection{removeSearchableAuction}
-Remove searchable auction does simply that. It will delete the keywords and
-category entries from each table matching the auction key that was requested to
-be deleted. In general, its not good practice to delete things out of the
-database, but in the case, its okay because this the search database is treated
-more like a cache than a datastore. The original data will still exist in the
-main database.
+\vspace{\baselineskip}
+
+If an auction key is given and the auction key \emph{does} match to a record in the SearchDB's auction table,
+the API will only update an auction if the given
+\texttt{seqNum} is greater than \texttt{UpdateSeqNum}. If it does, \texttt{UpdateSeqNum} will be set to \texttt{SeqNum}
+ Otherwise, we ignore the request
+and return an \texttt{OutOfOrder} error response.
+
+If the auction key \emph{does not} match to a record in the SearchDB's auction table,
+we create a new auction record with \texttt{UpdateSeqNum} equal to 0. 
+
+\vspace{\baselineskip}
+
+
+
+To create a new auction, first, keywords are generated from the given \texttt{title}.
+Keywords are generated by splitting the title by whitespace into case-insensitive tokens.
+
+Ex: ``Red Beanie Baby'' $\rightarrow$ [``red'', ``beanie'', ``baby'']
+
+\begin{itemize}
+    \item New keywords will only be generated and updated if a new title is provided. 
+    \item If new keywords are generated, the previously generated keywords that match with the given auction key that are not duplicates of keywords generated 
+    from the new title will be deleted
+    \item If an empty string is given as the title (``''), all keywords will be deleted, but no new keywords will be generated.
+\end{itemize} 
+
+Each keyword is added as a record in the \texttt{AuctionTitleWord} table, matched with the given \texttt{AuctionKey}.
+
+\vspace{\baselineskip}
+
+Next, categories are processed from the given list of category breadcrumbs, \texttt{categories}.
+All previous categories that match with the given auction key will be removed, in case the categories have changed.
+
+\vspace{\baselineskip}
+Each category is added as a record in the \texttt{AuctionCategory} table, matched with the given \texttt{AuctionKey}.
+
+
+
+\vspace{\baselineskip}
+Finally, \texttt{AuctionStatus}, \texttt{CloseDate}, and \texttt{UpdateSeqNum}, and \texttt{AuctionKey} are created as a record in the \texttt{Auction} table 
+and committed as a transaction.
+Each value overwrites the previous value. If any non-required parameters are not given, their values in the SearchDB will not change.
+
+
 
 \subsection{findAuctions}
-Find auctions builds a query based on the provided information. It generates
-this query as an ``and'' operation, so results passed back are only those that
-fit all the criteria you passed to findAuction. It handles pagination by having
-the user keep track of the last auction it saw, and request a certain number
-after that. So from our ordered query, we will pull numResults of results back,
-starting from one after the last auction key. If the last auction key was
-deleted/does not exist at the time of the call, it will return numResults
-number of results starting from the first value again. This helps get around
-the issue of missed auctions that were added during the search session.
 
+If no keyword list AND no category are given as parameters, no search can be performed by this API.
+An error response will be returned indicating the missing parameters.
+
+\vspace{\baselineskip}
+
+If a keyword list or category is given, the result list of auctions is formed as a transaction by \texttt{SELECT}ing \texttt{DISTINCT} auction records based on \texttt{AuctionKey} and applying successive JOINs if:
+
+\begin{itemize}
+\item Category is given: \texttt{JOIN} \texttt{AuctionCategory} with \texttt{AuctionKey}
+\item Keyword list is given: \texttt{JOIN} \texttt{AuctionTitleWord} with \texttt{AuctionKey}
+\end{itemize}
+and filtering with a \texttt{WHERE} clause based on if \texttt{CatBreadCrumb}, \texttt{AuctionStatus}, and/or \texttt{TitleWord} match the given category, auction status, and keywords.
+\vspace{\baselineskip}
+
+Pagination is performed by:
+
+\begin{itemize} 
+    \item using a \texttt{LIMIT} clause to limit the results based on the given \texttt{pageSize}.
+    \item using an \texttt{OFFSET} to show an offset subset of the results
+\end{itemize}
+
+\begin{center}
+\begin{lstlisting}[language = SQL,  
+    showspaces=false,
+    basicstyle=\ttfamily,
+    numbers=none,
+    commentstyle=\color{gray}]
+/* by default, closeDate is the current date and time */
+SELECT AuctionKey FROM SearchDB
+...
+ORDER BY @closeDate ASC 
+LIMIT @pageSize OFFSET @pageSize * (@pageIndex - 1) 
+
+\end{lstlisting}
+
+\end{center}
+
+If these clauses all succeed, the transaction is committed.
+The results are converted to JSON, then returned as a reply.
 \pagebreak
 \section{Changes to eBay Master Service}
 
-\subsection{Master DB Schema Changes}
-The sequence number field has been added to the auction table to count and
-uniquely identify the order and number of changes made to the auction table.
 
-\subsection{createAuction}
-Creates an auction as it did before, although now the createAuction service is
-responsible for calling createSearchableAuction to create a search entry for
-the auction. Sequence number is set to zero.
+\subsection{MasterDB Schema Changes}
 
-Create auction will then receive a response from the search service. If the
-response is anything other than success with the returned sequence number
-larger than or equal to the one the service sent, it will fail the update and
-alert the user.
+\subsubsection{NeedUpdate Field} 
+\label{sec:needupdate}
 
-The impact on the database from createAuction is documented in the master api
-documentation. The impact on the database from createSearchableAuction is
-documented in section \nameref{ref:csa}.
+
+The \texttt{NeedUpdate} field has been added to the \texttt{Auction} record to handle 
+dropped update messages from the eBay Search Service. In the case where there's no reply 
+from the eBay Search Service, there must be a way to guarantee that we will try again 
+until the eBay Search Service has also been updated.
+
+\begin{center}
+\includegraphics[scale=0.5]{images/no-update.png}
+\end{center}
+
+
+
+\vspace{\baselineskip}
+If this field is \texttt{true}, we will say this means the eBay Master Service is 
+in the process of updating this record, and has yet to receive a message from the eBay Search Service 
+indicating it has been updated on the SearchDB. 
+
+\vspace{\baselineskip}
+
+We suggest created some kind of mechanism, such a CRON job, to run periodically 
+to check if there are any auctions with this flag set to \texttt{true}. 
+If they are \texttt{true}, send a message to the eBay Search Service asking again 
+to update this record on the SearchDB table.
+
+
+
+\subsubsection{SeqNum Field}
+The \texttt{SeqNum} field has been added to the \texttt{Auction} record to help
+track the order of update messages, so we know which update message each record
+is waiting for. 
+
+\vspace{\baselineskip}
+If a record has \texttt{SeqNum} equal to 2, then we know it is waiting for the 
+update message from the eBay Search Service with sequence number 2.
+
+
+
+
+\pagebreak
+\subsection{API Definition Changes}
+
+\subsubsection{createAuction}
+
+The \texttt{createAuction} API will need to adopt the responsibility of sending messages to the eBay Search Service's
+\texttt{saveSearchableAuction} API to populate the SearchDB as new auctions are created. 
+\vspace{\baselineskip}
+
+For each new auction, \texttt{createAuction} will:
+
+\begin{enumerate}
+    \item begin a new transaction
+    \item create a record in the MasterDB's Auction table
+    \item set \texttt{SeqNum} to 0
+    \item set \texttt{NeedUpdate} to \texttt{true}
+    \item call eBay Search Service's \texttt{saveSearchableAuction} API to trigger a transaction to create 
+    a new auction in the SearchDB.
+    \item commit the transaction
+\end{enumerate}
+
+The eBay Master Service will then wait to receive a response from the eBay Search Service. 
+If a successful response with \texttt{"success":"true"} is returned, 
+\texttt{createAuction} should:
+
+\begin{enumerate}
+    \item begin a new transaction
+    \item set \texttt{NeedUpdate} to \texttt{false}
+    \item increment \texttt{SeqNum} by 1
+    \item commit the transaction
+\end{enumerate}
+
+If no response is returned, and a timeout message is received, \texttt{createAuction} 
+should return a successful response to the \texttt{createAuction user} and do nothing.
+
 
 % For any changes to the ebay master service, we need to provide:
 % - Description of schema changes (not a full schema drawing)
@@ -410,30 +593,67 @@ documented in section \nameref{ref:csa}.
 %   - Describe what happens on timeout from the search service.
 % - Any additional API calls that are needed to be added to master service
 
-\subsection{updateAuction}
+\pagebreak
+\subsubsection{updateAuction}
 
-Update auction will work as it did before. Except, now, update auction will
-call saveSearchableAuction with the updated parameters it will receive. The
-sequence number is incremented by one.
+The \texttt{updateAuction} API will need to adopt the responsibility of sending messages to the eBay Search Service's
+\texttt{saveSearchableAuction} API whenever an auction is updated with new information.
 
-Update auction will then receive a response from the search service. If the
-response is anything other than success with the returned sequence number
-larger than or equal to the one the service sent, it will fail the update and
-alert the user.
+For each new auction update, \texttt{updateAuction} will:
 
-The impact on the database from updateAuction is documented in the master api
-documentation. The impact on the database from saveSearchableAuction is
-documented in section \nameref{ref:csa}.
+\begin{enumerate}
+    \item begin a new transaction
+    \item update a record in the MasterDB's Auction table
+    \item set \texttt{NeedUpdate} to \texttt{true}
+    \item call eBay Search Service's \texttt{saveSearchableAuction} API to trigger a transaction to update an auction in the SearchDB
+    \item commit the transaction
+\end{enumerate}
 
-\subsection{findOpenAuctions}
-This service in the master DB now simply calls the findAuctions service from
-the search service, passing through the keywords and category it was passed,
-but only looking for auctions with a status of open.
+
+The eBay Master Service will then wait to receive a response from the eBay Search Service. 
+If a successful response with \texttt{"success":"true"} is returned, 
+ \texttt{updateAuction} should:
+ 
+ \begin{enumerate}
+     \item begin a new transaction
+     \item set \texttt{NeedUpdate} to \texttt{false}
+     \item increment \texttt{SeqNum} by 1
+     \item commit the transaction
+ \end{enumerate}
+
+
+ If no response is returned and a timeout message is received, \texttt{updateAuction} 
+ should return a successful response to the \texttt{updateAuction user} and do nothing.
+
+ 
+\subsubsection{findOpenAuctions}
+This API from the eBay Master Service calls the eBay Search Service's \texttt{findAuctions}.
+The parameters passed to the eBay Search Service's \texttt{findAuctions} API will be the same
+as the parameters passed to the eBay Master Service.
+\vspace{\baselineskip}
+
+After waiting for a response, the eBay Master Service should receive a list of auction keys 
+in the form of JSON.  To return the same information that is expected from the API specification 
+for \texttt{findOpenAuctions}, for each auction key, the eBay Master Service will need to perform a 
+\texttt{JOIN} with the MasterDB Seller table, filtering on \texttt{AuctionKey} to get \texttt{Title}, 
+\texttt{Description}, \texttt{OpenDate}, \texttt{ClosingDate}, and \texttt{HighBid}.
+
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+\vspace{\baselineskip}
+
+NOTE: For \texttt{updateAuction} and \texttt{createAuction}, assume that sending update messages after timeouts will be handled by some mechanism that
+searches for records where \texttt{NeedUpdate} is \texttt{true}.
+\emph{See \hyperref[sec:needupdate]{NeedUpdate Field} for more information.}
 
 \pagebreak
 \section{Logging}
 
 This section describes a suggested format for this service's application logs.
+
 
 \begin{lstlisting}[boxpos=t,language=json,firstnumber=1]
 {
