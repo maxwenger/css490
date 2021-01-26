@@ -138,10 +138,19 @@ will increase at an exponential rate.
 \subsection{Next Steps}
 To solve this more permanently, we want to create a separate search service
 that will handle searching for auctions by keyword and/or category. 
-We will call this new service the eBay Search Service.
+We will call this new service the eBay Search Service. 
 
 \vspace{\baselineskip}
-This search service will have its own database that can only be changed
+This document will explain the following:
+
+\begin{itemize}
+    \item the API designs for each eBay Search Service API
+    \item details needed for implementation and to assess if this solution is technically viable
+    \item changes that must be made to the eBay Master Service to use the eBay Search Service
+\end{itemize} 
+
+\vspace{\baselineskip}
+The search service will have its own database that can only be changed
 by external users via its API. Whenever a new FindAuction API request is made, 
 this service will perform the required business logic and databases accesses 
 instead of the eBay Master service.
@@ -156,8 +165,15 @@ The eBay Search Service  will support searching in the following ways:
     \item Searching for auctions based on keywords and category
 \end{itemize}
 
-Our search operation will only allow ``and'' operations between search terms.
-``Or'' operations must be done using multiple calls.
+Each search operation will only allow "AND" operations between search terms. 
+For example, searching for auctions that have "red" AND "yellow" in their titles.
+\vspace{\baselineskip}
+
+"OR" operations must be done by forming a union of the results from multiple calls. 
+For example, to get the results for auctions that have "red" OR "yellow" in their titles, 
+you must combine the results of searching for auctions that have "red" in their titles,
+and the results of searching for auctions that have "yellow" in their titles.
+
 
 \pagebreak
 % Clarify what kinds of searching we are doing such as:
@@ -191,7 +207,7 @@ Our search operation will only allow ``and'' operations between search terms.
 \subsubsection{SearchDB}
 \includegraphics[scale=0.5]{images/search-schema.png}
 \subsubsection{MasterDB}
-\includegraphics[scale=0.5]{images/master-schema.png}
+\includegraphics[scale=0.35]{images/master-schema.png}
 \pagebreak
 \subsection{API Descriptions}
 
@@ -242,40 +258,7 @@ exists.
     \end{tabular}
 \end{center}
 
-\pagebreak
-\subsubsection{removeSearchableAuction}
-\label{ref:usa}
-Removes an auction from the search database that corresponds with the given
-auction key.
 
-\paragraph{Input}
-
-\begin{itemize}
-    \item \textbf{auctionKey} - Key that uniquely identifies the auction
-\end{itemize}
-\begin{lstlisting}[language=json,numbers=none]
-{
-    "auctionKey": <string>
-}
-\end{lstlisting}
-
-\paragraph{Output}
-\begin{center}
-    \begin{tabular}{| p{7cm} | l |}
-        \hline
-        \textbf{Scenario} & \textbf{Response} \\
-        \hline
-        Successfully removed an auction &
-        \begin{lstlisting}[language=tablejson,firstnumber=1]
-{
-    "success": true
-}
-        \end{lstlisting} \\ 
-       %  \hline
-       %      todo: make error states & yeah! what he said! \\
-        \hline
-    \end{tabular}
-\end{center}
 
 \pagebreak
 \subsubsection{findAuctions}
@@ -350,7 +333,7 @@ the first result.
 % Describe what internal processes you do based on APIs.
 % I.E. What happens to DB when xyz is called.
 \subsection{saveSearchableAuction}
-Update searchable auction will update fields, keywords, and categories of an
+saveSearchableAuction will update fields, keywords, and categories of an
 existing auction in the search table.
 
 New keywords will be generated if a new title is provided. The new keywords
@@ -384,23 +367,31 @@ the issue of missed auctions that were added during the search session.
 \pagebreak
 \section{Changes to eBay Master Service}
 
-\subsection{Master DB Schema Changes}
-The sequence number field has been added to the auction table to count and
-uniquely identify the order and number of changes made to the auction table.
+\subsection{MasterDB Schema Changes}
+The \texttt{SeqNum} field has been added to the \texttt{Auction} table to count and
+uniquely identify the order of new transactions and the number of new auctions 
+that have been added to the table. 
 
 \subsection{createAuction}
-Creates an auction as it did before, although now the createAuction service is
-responsible for calling createSearchableAuction to create a search entry for
-the auction. Sequence number is set to zero.
+After creating a new entry in the MasterDB's Auction table as part of a transaction, 
+the \texttt{createAuction} API must call the eBay Search Service's 
+\texttt{saveSearchableAuction} API to trigger a transaction to create 
+a new auction in the SearchDB, sending a \texttt{SeqNum}.
+\texttt{SeqNum} begins at 0, and increments by 1 each time an auction is added.
 
-Create auction will then receive a response from the search service. If the
-response is anything other than success with the returned sequence number
-larger than or equal to the one the service sent, it will fail the update and
-alert the user.
+\vspace{\baselineskip}
+The eBay Master Service will then receive a response from the eBay Search Service. 
+If the response does not return \texttt{"success":"true"}, with a \texttt{seqNum}
+larger than or equal to the \texttt{seqNum} originally sent by the ebay Master Service, 
+the eBay Master Service will fail the transaction, roll back the creation of the new Auction record, 
+and send an response back to the user of the \texttt{createAuction} API 
+indicating an update error has occurred.
 
-The impact on the database from createAuction is documented in the master api
-documentation. The impact on the database from createSearchableAuction is
-documented in section \nameref{ref:csa}.
+
+\vspace{\baselineskip}
+Aside from updating SeqNum each time a new auction is created, the 
+impact on the MasterDB from performing \texttt{createAuction} is the same as 
+documented in the eBay Master Service API specification.
 
 % For any changes to the ebay master service, we need to provide:
 % - Description of schema changes (not a full schema drawing)
@@ -412,7 +403,7 @@ documented in section \nameref{ref:csa}.
 
 \subsection{updateAuction}
 
-Update auction will work as it did before. Except, now, update auction will
+\texttt{updateAuction} will work as it did before. Except, now, update auction will
 call saveSearchableAuction with the updated parameters it will receive. The
 sequence number is incremented by one.
 
@@ -420,6 +411,7 @@ Update auction will then receive a response from the search service. If the
 response is anything other than success with the returned sequence number
 larger than or equal to the one the service sent, it will fail the update and
 alert the user.
+
 
 The impact on the database from updateAuction is documented in the master api
 documentation. The impact on the database from saveSearchableAuction is
