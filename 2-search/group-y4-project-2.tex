@@ -372,7 +372,10 @@ The \texttt{SeqNum} field has been added to the \texttt{Auction} table to count 
 uniquely identify the order of new transactions and the number of new auctions 
 that have been added to the table. 
 
-\subsection{createAuction}
+
+\subsection{eBay Master API Definition Changes}
+
+\subsubsection{createAuction}
 After creating a new entry in the MasterDB's Auction table as part of a transaction, 
 the \texttt{createAuction} API must call the eBay Search Service's 
 \texttt{saveSearchableAuction} API to trigger a transaction to create 
@@ -385,7 +388,7 @@ If the response does not return \texttt{"success":"true"}, with a \texttt{seqNum
 larger than or equal to the \texttt{seqNum} originally sent by the ebay Master Service, 
 the eBay Master Service will fail the transaction, roll back the creation of the new Auction record, 
 and send an response back to the user of the \texttt{createAuction} API 
-indicating an update error has occurred.
+indicating an error has occurred.
 
 
 \vspace{\baselineskip}
@@ -401,23 +404,27 @@ documented in the eBay Master Service API specification.
 %   - Describe what happens on timeout from the search service.
 % - Any additional API calls that are needed to be added to master service
 
-\subsection{updateAuction}
+\subsubsection{updateAuction}
 
-\texttt{updateAuction} will work as it did before. Except, now, update auction will
-call saveSearchableAuction with the updated parameters it will receive. The
-sequence number is incremented by one.
+After successfully updating an auction in the MasterDB Auction table as part of a transaction, 
+ \texttt{updateAuction} will call \texttt{saveSearchableAuction} and increment \texttt{SeqNum} 
+ in the MasterDB Auction table by one.
 
-Update auction will then receive a response from the search service. If the
-response is anything other than success with the returned sequence number
-larger than or equal to the one the service sent, it will fail the update and
-alert the user.
+ \vspace{\baselineskip} 
 
+The eBay Master Service will then receive a response from the eBay Search Service.
+If the response does not return \texttt{"success":"true"}, with a \texttt{seqNum}
+larger than or equal to the \texttt{seqNum} originally sent by the ebay Master Service, 
+the eBay Master Service will fail the transaction, roll back the creation of the new Auction record, 
+and send an response back to the user of the \texttt{updateAuction} API 
+indicating an error has occurred.
 
-The impact on the database from updateAuction is documented in the master api
-documentation. The impact on the database from saveSearchableAuction is
-documented in section \nameref{ref:csa}.
+\vspace{\baselineskip} 
+Aside from updating SeqNum each time an auction is updated, the 
+impact on the MasterDB from performing \texttt{createAuction} is the same as 
+documented in the eBay Master Service API specification.
 
-\subsection{findOpenAuctions}
+\subsubsection{findOpenAuctions}
 This service in the master DB now simply calls the findAuctions service from
 the search service, passing through the keywords and category it was passed,
 but only looking for auctions with a status of open.
