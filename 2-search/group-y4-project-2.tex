@@ -581,7 +581,7 @@ If a successful response with \texttt{"success":"true"} is returned,
     \item commit the transaction
 \end{enumerate}
 
-If no response is returned after an appropriate timeout period, \texttt{createAuction} 
+If no response is returned, and a timeout message is received, \texttt{createAuction} 
 should return a successful response to the \texttt{createAuction user} and do nothing.
 
 
@@ -622,7 +622,7 @@ If a successful response with \texttt{"success":"true"} is returned,
  \end{enumerate}
 
 
- If no response is returned after an appropriate timeout period, \texttt{updateAuction} 
+ If no response is returned and a timeout message is received, \texttt{updateAuction} 
  should return a successful response to the \texttt{updateAuction user} and do nothing.
 
  
