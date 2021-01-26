@@ -192,7 +192,7 @@ Each search operation will only allow ``AND'' operations between search terms.
 For example, searching for auctions that have``red'' AND ``yellow'' in their titles.
 \vspace{\baselineskip}
 
-``OR'' operations must be done by forming a union of the results from multiple calls. 
+``OR'' operations must be done making multiple API calls and combining the results.
 For example, to get the results for auctions that have ``red'' OR ``yellow'' in their titles, 
 you must combine the results of searching for auctions that have ``red" in their titles,
 and the results of searching for auctions that have ``yellow'' in their titles.
@@ -237,28 +237,34 @@ and the results of searching for auctions that have ``yellow'' in their titles.
 Creates an auction if no auction that corresponds with the given auction key exists.
 Otherwise, updates the auction that corresponds with the given auction key. 
 
+
+\vspace{\baselineskip}
+
+To create or update multiple auctions, \texttt{saveSearchableAuction} must be called 
+once for each auction to be created or updated.
 \paragraph{Input}
 
 \begin{itemize}
     \item \textbf{auctionKey} - Public key that uniquely identifies an auction from the eBay Master Service.
     \item \textbf{title} - Title of the auction 
     \item \textbf{closeDate} - Closing date of the auction 
-    \item \textbf{categories} -  List of category breadcrumbs
+    \item \textbf{categories} -  List of categories, in category breadcrumb format
     \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
     \item \textbf{seqNum} - Sequence number of the auction record. Each time an update is performed for this record,
         it is incremented by one. Requests made with \texttt{seqNum} $<$ \texttt{UpdateSeqNum} for this record are ignored.
 \end{itemize}
 \begin{lstlisting}[language=json,numbers=none]
 {
-    "auctionKey": <string>,
-    "title": <string>,
+    "auctionKey": <string>, // required
+    "title": <string>,      // required
     "closeDate": <string>,
     "categories": [ <string>, ...],
     "status": <string>,
-    "seqNum": <int>
+    "seqNum": <int>         // required
 }
 \end{lstlisting}
 
+\pagebreak
 \paragraph{Output}
 \begin{center}
     \begin{tabular}{| p{6cm} | l |}
@@ -297,42 +303,57 @@ Otherwise, updates the auction that corresponds with the given auction key.
 
 
 
+
+
 \pagebreak
 \subsubsection{findAuctions}
 
-findAuctions will return a number of results based on the user's query. The
-parameters search by ``anding'' the results together (e.g. if you ask for a
-keyword ``red'', ``LG'' with the category ``ELE:PHO'' signifying phones in
-electronics, red LG phones will be returned, but not red Nokia phones, or red
-LG refrigerators). To perform searches that ``or'' search terms, multiple
-searches must be made. lastAuctionKey and numResults are to be used for
-pagination. findAuctions will return numResults number of entries ordered from
-oldest to newest, starting from the lastAuctionKey. If no lastAuctionKey is
-provided, findAuctions will return numResults number of results starting from
-the first result.
+findAuctions retrieves a list of auctions filtered based on the parameters passed.
+This is intended to support searches by category, keywords, date, and auction status.
 
+\vspace{\baselineskip}
+
+At a minimum, either a keyword list or a category must be passed as parameters.
+
+If a page index that corresponds with a page that doesn't exist, 
+the query is considered successful, but no results are returned.
+
+\vspace{\baselineskip}
+Each search operation will only allow ``AND'' operations between search terms. 
+For example, searching for auctions that have``red'' AND ``yellow'' in their titles.
+\vspace{\baselineskip}
+
+``OR'' operations must be done making multiple API calls and combining the results.
+For example, to get the results for auctions that have ``red'' OR ``yellow'' in their titles, 
+you must combine the results of searching for auctions that have ``red" in their titles,
+and the results of searching for auctions that have ``yellow'' in their titles.
 \paragraph{Input} 
 
 \begin{itemize}
     \item \textbf{keywords} - Keywords that auction results will be matched to
-    \item \textbf{category} - Category breadcrumb
+    \item \textbf{category} - Category, in category breadcrumb format
     \item \textbf{status} - Status of the auction (closed, open, pending, cancelled)
-    \item \textbf{lastAuctionKey} - The last auction key will be last auction
-        not included in the results that are numResults long. If given, results
-        will be returned starting from this page.
-    \item \textbf{numResults} - Number of auctions returned per page
+    \item \textbf{closeDate} - Closing date of the auction
+    \item \textbf{pageIndex} - Page index that is returned by every API call to \texttt{findAuctions}. 
+                                Instructs the API where to begin returning auctions from. 
+                                If this parameter is not provided, auctions will begin from the earliest auction result
+                                that match the given parameters.
+    \item \textbf{pageSize} - Number of auctions returned per page
 \end{itemize}
 
 \begin{lstlisting}[language=json,numbers=none]
 {
-    "keywords": [ <string>, ...], // optional
-    "status": <string>, // optional
-    "categories": [<string>, ...], // optional
-    "lastAuctionKey": <number>, // optional
-    "numResults": <number>
+    "keywords": [ <string>, ...], 
+    "status": <string>, 
+    "closeDate": <string>,
+    "categories": [<string>, ...], 
+    "pageIndex": <number>, 
+    "pageSize": <number>         // required
 }
 \end{lstlisting}
 
+
+\pagebreak
 \paragraph{Output}
 \begin{center}
     \begin{tabular}{| p{7cm} | l |}
@@ -351,17 +372,27 @@ the first result.
 }
         \end{lstlisting} \\ 
         \hline
- \hline
         Successfully search with no results. &
         \begin{lstlisting}[language=tablejson,firstnumber=1]
 {
     "success": true,
     "results": [ ]
+    "pageIndex": -1
 }
          \end{lstlisting} \\ 
         % \hline
          %    todo: make error states & yeah! what he said! \\
          \hline
+         Missing category AND keyword list &
+         \begin{lstlisting}[language=tablejson,firstnumber=1]
+{
+     "success": false,
+     "error": "NoCategoryOrKeywords"
+}
+          \end{lstlisting} \\ 
+         % \hline
+          %    todo: make error states & yeah! what he said! \\
+          \hline
     \end{tabular}
 \end{center}
 
@@ -400,9 +431,9 @@ we create a new auction record with \texttt{UpdateSeqNum} equal to 0.
 
 
 To create a new auction, first, keywords are generated from the given \texttt{title}.
-Keywords are generated by splitting the title by whitespace.
+Keywords are generated by splitting the title by whitespace into case-insensitive tokens.
 
-Ex: "Red Beanie Baby" $\rightarrow$ [``Red'', ``Beanie'', ``Baby'']
+Ex: ``Red Beanie Baby'' $\rightarrow$ [``red'', ``beanie'', ``baby'']
 
 \begin{itemize}
     \item New keywords will only be generated and updated if a new title is provided. 
@@ -431,16 +462,46 @@ Each value overwrites the previous value. If any non-required parameters are not
 
 
 \subsection{findAuctions}
-Find auctions builds a query based on the provided information. It generates
-this query as an ``and'' operation, so results passed back are only those that
-fit all the criteria you passed to findAuction. It handles pagination by having
-the user keep track of the last auction it saw, and request a certain number
-after that. So from our ordered query, we will pull numResults of results back,
-starting from one after the last auction key. If the last auction key was
-deleted/does not exist at the time of the call, it will return numResults
-number of results starting from the first value again. This helps get around
-the issue of missed auctions that were added during the search session.
 
+If no keyword list AND no category are given as parameters, no search can be performed by this API.
+An error response will be returned indicating the missing parameters.
+
+\vspace{\baselineskip}
+
+If a keyword list or category is given, the result list of auctions is formed as a transaction by \texttt{SELECT}ing \texttt{DISTINCT} auction records based on \texttt{AuctionKey} and applying successive JOINs if:
+
+\begin{itemize}
+\item Category is given: \texttt{JOIN} \texttt{AuctionCategory} with \texttt{AuctionKey}
+\item Keyword list is given: \texttt{JOIN} \texttt{AuctionTitleWord} with \texttt{AuctionKey}
+\end{itemize}
+and filtering with a \texttt{WHERE} clause based on if \texttt{CatBreadCrumb}, \texttt{AuctionStatus}, and/or \texttt{TitleWord} match the given category, auction status, and keywords.
+\vspace{\baselineskip}
+
+Pagination is performed by:
+
+\begin{itemize} 
+    \item using a \texttt{LIMIT} clause to limit the results based on the given \texttt{pageSize}.
+    \item using an \texttt{OFFSET} to show an offset subset of the results
+\end{itemize}
+
+\begin{center}
+\begin{lstlisting}[language = SQL,  
+    showspaces=false,
+    basicstyle=\ttfamily,
+    numbers=none,
+    commentstyle=\color{gray}]
+/* by default, closeDate is the current date and time */
+SELECT AuctionKey FROM SearchDB
+...
+ORDER BY @closeDate ASC 
+LIMIT @pageSize OFFSET @pageSize * (@pageIndex - 1) 
+
+\end{lstlisting}
+
+\end{center}
+
+If these clauses all succeed, the transaction is committed.
+The results are converted to JSON, then returned as a reply.
 \pagebreak
 \section{Changes to eBay Master Service}
 
